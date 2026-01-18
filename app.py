@@ -2,69 +2,95 @@ import streamlit as st
 import os
 import time
 from docx import Document
-# Importamos tus funciones del script original
-# from tu_script import procesar_archivo, OUTPUT_FOLDER 
+# Importamos la función de tu otro archivo
+from precorreccion import corregir_bloque 
 
-# --- CONFIGURACIÓN DE PÁGINA ---
+# --- CONFIGURACIÓN Y ESTILO ---
 st.set_page_config(page_title="Tregolam Preflight", page_icon="🐋", layout="wide")
 
-# --- ESTILO PERSONALIZADO (CSS) ---
+# Inyección de CSS para diseño tecnológico
 st.markdown("""
     <style>
-    .main { background-color: #f0f2f6; }
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #0054A6; color: white; }
-    .stProgress > div > div > div > div { background-image: linear-gradient(to right, #00AEEF , #0054A6); }
-    .console-box { background-color: #0e1117; color: #00ffcc; padding: 10px; border-radius: 5px; font-family: 'Courier New', monospace; height: 200px; overflow-y: auto; }
+    /* Fondo y tipografía */
+    .stApp {
+        background: radial-gradient(circle at top right, #001f3f, #050505);
+        color: #ffffff;
+    }
+    
+    /* Contenedores con efecto cristal */
+    div[data-testid="stVerticalBlock"] > div:has(div.stMarkdown) {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 25px;
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(12px);
+    }
+
+    /* Botón CORREGIR (Degradado Azul) */
+    .stButton > button {
+        border-radius: 10px;
+        height: 60px;
+        font-weight: bold;
+        font-size: 18px;
+        transition: 0.3s;
+    }
+    
+    /* Botón específico de ejecución */
+    div.stButton > button:first-child {
+        background: linear-gradient(90deg, #00AEEF, #0054A6) !important;
+        border: none !important;
+        color: white !important;
+    }
+
+    /* Consola de Proceso */
+    .console-box {
+        background-color: #000000;
+        color: #00ffcc;
+        padding: 15px;
+        border-radius: 10px;
+        font-family: 'Courier New', monospace;
+        border: 1px solid #00AEEF;
+        min-height: 150px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SIDEBAR (LOGO Y TIPO) ---
+# --- SIDEBAR ---
 with st.sidebar:
-    st.image("isologo tregolma prefligth.png", width=200) #
-    st.title("Configuración")
-    tipo_texto = st.selectbox("Género del texto", ["Texto General", "Novela (Próximamente)", "Ensayo (Próximamente)"]) #
-    st.info("El sistema adaptará las reglas según el género seleccionado.")
+    st.image("isologo tregolma prefligth.png")
+    st.markdown("### Configuración")
+    genero = st.selectbox("Tipo de texto", ["Texto General", "Novela", "Ensayo"])
+    st.divider()
+    st.caption("Versión 1.0.0 - IA Correctora")
 
 # --- CUERPO PRINCIPAL ---
-st.header("🐋 Tregolam Preflight - Corrección Inteligente")
+st.title("🐋 Tregolam Preflight")
+st.write("Herramienta profesional de corrección ortotipográfica.")
 
-col_izq, col_der = st.columns([2, 1])
+col1, col2 = st.columns([2, 1], gap="large")
 
-with col_izq:
-    uploaded_file = st.file_uploader("Sube tu archivo .docx", type=["docx"]) #
+with col1:
+    uploaded_file = st.file_uploader("Arrastra aquí tu archivo .docx", type=["docx"])
     
-    st.subheader("Estado del Proceso")
-    progreso_bar = st.progress(0)
-    # Simulación de consola de log que pediste
-    console_placeholder = st.empty()
-    console_placeholder.markdown('<div class="console-box">Esperando archivo...</div>', unsafe_allow_html=True)
+    st.subheader("📦 Estado del Proceso")
+    progreso = st.progress(0)
+    consola = st.empty()
+    consola.markdown('<div class="console-box">Esperando documento...</div>', unsafe_allow_html=True)
 
-with col_der:
-    st.subheader("Acciones")
-    btn_corregir = st.button("🚀 CORREGIR") #
-    btn_informe = st.button("📋 Generar Informe (PDF)") #
-    btn_comprobacion = st.button("🔍 Comprobación (BETA)") #
+with col2:
+    st.subheader("⚙️ Acciones")
+    if st.button("🚀 INICIAR CORRECCIÓN"):
+        if uploaded_file:
+            consola.markdown('<div class="console-box">Analizando documento...<br>Iniciando motor GPT-4o...</div>', unsafe_allow_html=True)
+            # Aquí iría la llamada a tu lógica de procesamiento
+            # procesar_archivo(uploaded_file.name) 
+            st.success("¡Documento procesado!")
+        else:
+            st.error("Por favor, sube un archivo primero.")
+            
+    st.button("📄 GENERAR INFORME")
+    st.button("🔍 COMPROBACIÓN (BETA)")
     
     st.divider()
-    
-    if st.button("🛑 DETENER", type="secondary"): #
-        st.warning("Proceso interrumpido por el usuario.")
-
-# --- LÓGICA DE EJECUCIÓN ---
-if btn_corregir and uploaded_file:
-    with console_placeholder.container():
-        st.markdown('<div class="console-box">Iniciando motor de IA...<br>Analizando estructura del documento...</div>', unsafe_allow_html=True)
-    
-    # Aquí llamarías a tu función procesar_archivo()
-    # Para la demo, simulamos el progreso:
-    for percent_complete in range(100):
-        time.sleep(0.05)
-        progreso_bar.progress(percent_complete + 1)
-        if percent_complete == 50:
-            console_placeholder.markdown('<div class="console-box">Corrigiendo gramática segura (Nivel 1)...<br>Consultando GPT-4o-mini...</div>', unsafe_allow_html=True)
-    
-    st.success("¡Corrección finalizada con éxito!")
-    st.balloons()
-    
-    # Botón de descarga final
-    st.download_button(label="📥 Descargar Documento Corregido", data=b"content", file_name="corregido.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document") #
+    st.button("📥 DESCARGAR", disabled=not uploaded_file)
+    st.button("🛑 DETENER", type="primary", key="detener")
