@@ -1,56 +1,49 @@
 import streamlit as st
 import os
+from precorreccion import corregir_bloque # Asegúrate que tu función se llame así
 
-# --- 1. CONFIGURACIÓN VISUAL (LO QUE PIDE EL CROQUIS) ---
+# --- DISEÑO ---
 st.set_page_config(page_title="Tregolam Preflight", page_icon="🐋", layout="wide")
+st.markdown("""<style>.stApp { background: radial-gradient(circle at top right, #001f3f, #050505); color: white; }</style>""", unsafe_allow_html=True)
 
-st.markdown("""
-    <style>
-    .stApp { background: radial-gradient(circle at top right, #001f3f, #050505); color: white; }
-    .stButton > button { 
-        background: linear-gradient(90deg, #00AEEF, #0054A6) !important; 
-        color: white !important; border: none !important; border-radius: 10px; height: 50px; width: 100%;
-    }
-    .console-box { 
-        background-color: #000; color: #00ffcc; padding: 15px; border-radius: 10px; 
-        border: 1px solid #00AEEF; font-family: monospace; min-height: 100px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- 2. CONEXIÓN CON TU LÓGICA ---
-logic_ready = False
-try:
-    import precorreccion
-    logic_ready = True
-except Exception as e:
-    st.error(f"❌ Error crítico: No se pudo cargar 'precorreccion.py'. Detalles: {e}")
-
-# --- 3. DISEÑO DE LA INTERFAZ ---
 st.title("🐋 Tregolam Preflight")
 
-col_izq, col_der = st.columns([2, 1], gap="large")
+col1, col2 = st.columns([2, 1])
 
-with col_izq:
-    archivo = st.file_uploader("Sube tu archivo .docx", type=["docx"])
-    st.markdown('<div class="console-box">ESTADO: Esperando archivo...</div>', unsafe_allow_html=True)
+with col1:
+    archivo = st.file_uploader("Sube tu manuscrito (.docx)", type=["docx"])
+    consola = st.empty()
+    consola.info("Esperando archivo...")
 
-with col_der:
-    st.subheader("Acciones")
-    genero = st.selectbox("Género", ["Texto General", "Novela", "Ensayo"])
-    
+with col2:
     if st.button("🚀 CORREGIR"):
-        if not logic_ready:
-            st.error("El motor de IA no está cargado correctamente.")
-        elif archivo is None:
-            st.warning("Por favor, sube un archivo primero.")
+        if archivo is not None:
+            consola.warning("⚙️ Procesando con IA... Por favor, no cierres la pestaña.")
+            
+            # 1. GUARDAR ARCHIVO TEMPORAL
+            with open("temp.docx", "wb") as f:
+                f.write(archivo.getbuffer())
+            
+            # 2. EJECUTAR TU LÓGICA (Aquí es donde 'trabaja')
+            try:
+                # IMPORTANTE: Aquí llamamos a tu función de precorreccion.py
+                # Ajusta el nombre de la función si en tu archivo es distinto
+                resultado_path = "manuscrito_corregido.docx" 
+                
+                # Ejemplo de llamada (ajusta según tus parámetros reales):
+                corregir_bloque("temp.docx", resultado_path) 
+                
+                consola.success("✅ ¡Corrección finalizada con éxito!")
+                
+                # 3. MOSTRAR BOTÓN DE DESCARGA
+                with open(resultado_path, "rb") as file:
+                    st.download_button(
+                        label="📥 DESCARGAR ARCHIVO CORREGIDO",
+                        data=file,
+                        file_name="Tregolam_Corregido.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
+            except Exception as e:
+                consola.error(f"Error durante el proceso: {e}")
         else:
-            with st.spinner("Corrigiendo..."):
-                # Aquí es donde ocurre la magia
-                st.info("Proceso iniciado. Revisa los logs para ver el avance.")
-
-    st.button("📋 INFORME")
-    st.button("🔍 COMPROBACIÓN")
-    st.divider()
-    st.button("📥 DESCARGAR", disabled=True)
-    st.button("🛑 DETENER", type="primary")
+            st.error("Sube un archivo primero.")
