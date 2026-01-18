@@ -1,58 +1,46 @@
 import streamlit as st
 import os
-import sys
-import importlib
+import precorreccion # Tu archivo
 
-# --- CONFIGURACIÓN VISUAL ---
-st.set_page_config(page_title="Tregolam Preflight", page_icon="🐋", layout="wide")
-st.markdown("""<style>.stApp { background: #000; color: white; } .stButton>button { background: #00AEEF !important; }</style>""", unsafe_allow_html=True)
+st.set_page_config(page_title="Tregolam Debug", layout="wide")
+st.title("🐋 Probador de Conexión Tregolam")
 
-st.image("https://tregolam.com/wp-content/uploads/2021/01/logo-tregolam.png", width=200) # Backup del logo
-st.title("🐋 Tregolam Preflight")
+archivo = st.file_uploader("Sube un archivo pequeño para probar", type=["docx"])
 
-# --- CONEXIÓN DINÁMICA ---
-try:
-    import precorreccion
-    importlib.reload(precorreccion) # Forzamos que lea los cambios de GitHub
-    motor_listo = True
-except Exception as e:
-    st.error(f"Error de conexión: {e}")
-    motor_listo = False
+if st.button("🚀 INICIAR PRUEBA"):
+    if archivo:
+        log = st.status("Registrando pasos...", expanded=True)
+        
+        # PASO 1: Guardar
+        with open("entrada.docx", "wb") as f:
+            f.write(archivo.getbuffer())
+        log.write("✅ 1. Archivo 'entrada.docx' guardado en el servidor.")
 
-archivo = st.file_uploader("Sube tu manuscrito .docx", type=["docx"])
+        # PASO 2: Verificar la Key
+        if "OPENAI_API_KEY" in st.secrets:
+            log.write("✅ 2. API Key detectada en Secrets.")
+            os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+        else:
+            log.error("❌ 2. No se encuentra la API Key en Secrets.")
+            st.stop()
 
-if st.button("🚀 INICIAR CORRECCIÓN"):
-    if not archivo:
-        st.warning("Primero sube un archivo.")
-    elif not motor_listo:
-        st.error("El motor de corrección no está cargado.")
+        # PASO 3: Ejecutar tu función
+        try:
+            log.write("⏳ 3. Llamando a tu función en precorreccion.py...")
+            # Aquí es donde el programa suele "quedarse mudo"
+            precorreccion.corregir_bloque("entrada.docx") 
+            log.write("✅ 4. La función terminó de ejecutarse.")
+        except Exception as e:
+            log.error(f"❌ Error dentro de tu archivo precorreccion.py: {e}")
+            st.stop()
+
+        # PASO 4: Buscar el resultado
+        archivos = [f for f in os.listdir('.') if f.endswith('.docx') and f != "entrada.docx"]
+        if archivos:
+            st.success(f"¡LOGRADO! Archivo encontrado: {archivos[0]}")
+            with open(archivos[0], "rb") as f:
+                st.download_button("📥 DESCARGAR", f, file_name="resultado.docx")
+        else:
+            st.warning("⚠️ El código corrió pero no creó ningún archivo nuevo. Revisa si tu script tiene la ruta de guardado fija.")
     else:
-        with st.spinner("IA trabajando... por favor espera."):
-            try:
-                # 1. Creamos el archivo de entrada
-                with open("entrada.docx", "wb") as f:
-                    f.write(archivo.getbuffer())
-                
-                # 2. Intentamos todas las formas posibles de llamar a tu función
-                # Probamos con 'corregir_bloque' que es lo estándar en tu repo
-                if hasattr(precorreccion, 'corregir_bloque'):
-                    precorreccion.corregir_bloque("entrada.docx")
-                else:
-                    # Si tu función se llama distinto, esto nos dirá qué funciones hay
-                    funciones_disponibles = [f for f in dir(precorreccion) if not f.startswith('_')]
-                    st.error(f"No encuentro la función 'corregir_bloque'. En tu archivo existen: {funciones_disponibles}")
-                    st.stop()
-
-                # 3. BUSCAR EL RESULTADO
-                # Miramos qué archivos .docx hay ahora en la carpeta
-                ficheros = [f for f in os.listdir('.') if f.endswith('.docx') and f != "entrada.docx"]
-                
-                if ficheros:
-                    st.success("¡Corrección finalizada!")
-                    with open(ficheros[0], "rb") as f:
-                        st.download_button("📥 DESCARGAR ARCHIVO CORREGIDO", f, file_name=f"Corregido_{archivo.name}")
-                else:
-                    st.error("El proceso terminó pero no se generó ningún archivo nuevo. Revisa los logs.")
-
-            except Exception as e:
-                st.exception(e) # Esto nos dará el error exacto de Python
+        st.info("Sube un archivo para empezar.")
