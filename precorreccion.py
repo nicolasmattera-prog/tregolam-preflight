@@ -56,6 +56,48 @@ RESTRICCIONES ABSOLUTAS (infringir cualquera anula la corrección):
 - Cumple la regla 12 al pie: nunca quites el espacio tras . , ; : y nunca pegues palabras a esos signos.
 """
 
+# ---------- PROMPT MICRO VERBAL (FASE 2) ----------
+PROMPT_MICRO_VERBAL = """
+Eres un corrector gramatical especializado en uso verbal en español.
+
+Si el fragmento contiene un uso verbal incorrecto
+(infinitivo exhortativo, gerundio mal empleado,
+participio incorrecto o construcción verbal impropia),
+corrige ÚNICAMENTE el verbo o la construcción verbal mínima necesaria.
+
+NO resumas.
+NO reescribas el párrafo completo.
+NO añadas ni elimines información.
+NO cambies el significado.
+Si no hay error verbal, devuelve el fragmento EXACTAMENTE igual.
+
+Devuelve solo el fragmento corregido.
+"""
+
+# ---------- MICRO VERBAL (FASE 2) ----------
+def corregir_verbal_micro(fragmento):
+    if not fragmento.strip():
+        return fragmento
+
+    try:
+        res = client.chat.completions.create(
+            model=MODEL_MINI,
+            messages=[
+                {"role": "system", "content": PROMPT_MICRO_VERBAL},
+                {"role": "user", "content": fragmento}
+            ],
+            temperature=0
+        )
+
+        log_tokens(model=MODEL_MINI, usage=res.usage, tag="micro_verbal")
+
+        r = res.choices[0].message.content.strip()
+        return r if r else fragmento
+
+    except Exception as e:
+        print("⚠️ micro_verbal error:", e)
+        return fragmento
+    
 # ---------- LIMPIEZA ----------
 def limpieza_mecanica(texto):
     if not texto:
@@ -109,16 +151,13 @@ def corregir_bloque(texto):
             )
 
             log_tokens(model=MODEL_FULL, usage=res.usage, tag="fallback_full")
-
             r = res.choices[0].message.content.strip()
 
         # ---- FASE 2: MICRO VERBAL (IA CONTROLADA) ----
-        if re.search(
-            r'\b(venir|dar|tomar|sentir|contener|criticando|containing)\b',
-            r,
-            re.IGNORECASE
-        ):
-            r = corregir_verbal_micro(r)
+        if True:   # ← SOLO PARA PRUEBA
+            r2 = corregir_verbal_micro(r)
+            if r2 and r2.strip():
+                r = r2
 
         # ---- NIVEL PYTHON SEGURO ----
         r = correcciones_gramaticales_seguras(r)
