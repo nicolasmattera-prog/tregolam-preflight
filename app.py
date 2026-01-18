@@ -1,39 +1,56 @@
 import streamlit as st
 import os
+import shutil
 import precorreccion
 import traceback
-import time
 
 st.set_page_config(page_title="Tregolam Preflight", page_icon="🐋")
 st.title("🐋 Tregolam Preflight")
 
-archivo = st.file_uploader("Sube el manuscrito (.docx)", type=["docx"])
+# 1. Crear estructura de carpetas que requiere tu script
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
+OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
+os.makedirs(INPUT_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+archivo = st.file_uploader("Sube tu manuscrito (.docx)", type=["docx"])
 
 if st.button("🚀 INICIAR CORRECCIÓN"):
     if archivo:
-        # Limpieza de archivos viejos
-        if os.path.exists("resultado_final.docx"):
-            os.remove("resultado_final.docx")
-            
-        # Guardar archivo que subes
-        with open("entrada.docx", "wb") as f:
+        # Limpiar carpetas de intentos previos
+        shutil.rmtree(INPUT_FOLDER); os.makedirs(INPUT_FOLDER)
+        shutil.rmtree(OUTPUT_FOLDER); os.makedirs(OUTPUT_FOLDER)
+
+        # 2. Guardar el archivo donde tu script lo espera (carpeta entrada)
+        ruta_entrada = os.path.join(INPUT_FOLDER, archivo.name)
+        with open(ruta_entrada, "wb") as f:
             f.write(archivo.getbuffer())
         
-        with st.status("Procesando...", expanded=True) as status:
+        with st.status("Ejecutando corrección quirúrgica...", expanded=True) as status:
             try:
-                # Llamamos al motor que está en el otro archivo
-                precorreccion.corregir_bloque("entrada.docx")
-                time.sleep(2) # Espera técnica
+                # 3. Lanzar la función principal de TU script
+                # Pasamos solo el nombre porque tu script lo busca en INPUT_FOLDER
+                precorreccion.procesar_archivo(archivo.name)
                 
-                if os.path.exists("resultado_final.docx"):
-                    status.update(label="✅ ¡TERMINADO!", state="complete")
-                    with open("resultado_final.docx", "rb") as f:
-                        st.download_button("📥 DESCARGAR RESULTADO", f, file_name="corregido.docx")
+                # 4. Buscar el resultado en la carpeta 'salida'
+                nombre_salida = archivo.name.replace(".docx", "_CORREGIDO.docx")
+                ruta_salida = os.path.join(OUTPUT_FOLDER, nombre_salida)
+
+                if os.path.exists(ruta_salida):
+                    status.update(label="✅ ¡CORRECCIÓN FINALIZADA!", state="complete")
+                    with open(ruta_salida, "rb") as f:
+                        st.download_button(
+                            label="📥 DESCARGAR MANUSCRITO CORREGIDO",
+                            data=f,
+                            file_name=nombre_salida,
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        )
                 else:
-                    st.error("El motor no generó el archivo de salida.")
+                    st.error("El proceso terminó pero no se encontró el archivo en la carpeta 'salida'.")
             
             except Exception:
-                st.error("Error detectado:")
+                st.error("Error técnico en la ejecución:")
                 st.code(traceback.format_exc())
     else:
-        st.warning("Por favor, sube un archivo.")
+        st.warning("Por favor, carga un archivo .docx")
