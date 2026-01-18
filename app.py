@@ -1,55 +1,58 @@
 import streamlit as st
 import os
-import time
-import glob
+import sys
+import importlib
 
-# --- 1. CONEXIÓN ---
-try:
-    import precorreccion
-    motor_listo = True
-except Exception as e:
-    st.error(f"Error al cargar precorreccion.py: {e}")
-    motor_listo = False
-
-# --- 2. DISEÑO ---
+# --- CONFIGURACIÓN VISUAL ---
 st.set_page_config(page_title="Tregolam Preflight", page_icon="🐋", layout="wide")
-st.markdown("""<style>.stApp { background: #050505; color: white; } .stButton>button { background: #00AEEF !important; color: white !important; }</style>""", unsafe_allow_html=True)
+st.markdown("""<style>.stApp { background: #000; color: white; } .stButton>button { background: #00AEEF !important; }</style>""", unsafe_allow_html=True)
 
+st.image("https://tregolam.com/wp-content/uploads/2021/01/logo-tregolam.png", width=200) # Backup del logo
 st.title("🐋 Tregolam Preflight")
 
-# --- 3. LÓGICA ---
-archivo = st.file_uploader("Sube tu .docx", type=["docx"])
+# --- CONEXIÓN DINÁMICA ---
+try:
+    import precorreccion
+    importlib.reload(precorreccion) # Forzamos que lea los cambios de GitHub
+    motor_listo = True
+except Exception as e:
+    st.error(f"Error de conexión: {e}")
+    motor_listo = False
+
+archivo = st.file_uploader("Sube tu manuscrito .docx", type=["docx"])
 
 if st.button("🚀 INICIAR CORRECCIÓN"):
-    if archivo and motor_listo:
-        # Limpiamos rastros de intentos anteriores
-        for f in glob.glob("*.docx"):
-            if f != "entrada.docx": os.remove(f)
-            
-        with st.status("Ejecutando corrección... (No cierres esta pestaña)", expanded=True) as status:
+    if not archivo:
+        st.warning("Primero sube un archivo.")
+    elif not motor_listo:
+        st.error("El motor de corrección no está cargado.")
+    else:
+        with st.spinner("IA trabajando... por favor espera."):
             try:
-                # Guardamos el archivo
+                # 1. Creamos el archivo de entrada
                 with open("entrada.docx", "wb") as f:
                     f.write(archivo.getbuffer())
                 
-                # LLAMADA A TU FUNCIÓN
-                # Usamos getattr por si hay dudas con el nombre
-                precorreccion.corregir_bloque("entrada.docx")
-                
-                # Pausa de seguridad para que el servidor termine de escribir el disco
-                time.sleep(3)
-                
-                # BUSCAR EL RESULTADO (Cualquier docx que no sea la entrada)
-                resultados = [f for f in os.listdir('.') if f.endswith('.docx') and f != "entrada.docx"]
-                
-                if resultados:
-                    status.update(label="✅ ¡Completado!", state="complete")
-                    archivo_final = resultados[0]
-                    with open(archivo_final, "rb") as f:
-                        st.download_button("📥 DESCARGAR RESULTADO", f, file_name=f"Corregido_{archivo.name}")
+                # 2. Intentamos todas las formas posibles de llamar a tu función
+                # Probamos con 'corregir_bloque' que es lo estándar en tu repo
+                if hasattr(precorreccion, 'corregir_bloque'):
+                    precorreccion.corregir_bloque("entrada.docx")
                 else:
-                    st.error("El proceso terminó pero no se creó el archivo. Puede ser un error interno de OpenAI o de permisos de escritura.")
+                    # Si tu función se llama distinto, esto nos dirá qué funciones hay
+                    funciones_disponibles = [f for f in dir(precorreccion) if not f.startswith('_')]
+                    st.error(f"No encuentro la función 'corregir_bloque'. En tu archivo existen: {funciones_disponibles}")
+                    st.stop()
+
+                # 3. BUSCAR EL RESULTADO
+                # Miramos qué archivos .docx hay ahora en la carpeta
+                ficheros = [f for f in os.listdir('.') if f.endswith('.docx') and f != "entrada.docx"]
+                
+                if ficheros:
+                    st.success("¡Corrección finalizada!")
+                    with open(ficheros[0], "rb") as f:
+                        st.download_button("📥 DESCARGAR ARCHIVO CORREGIDO", f, file_name=f"Corregido_{archivo.name}")
+                else:
+                    st.error("El proceso terminó pero no se generó ningún archivo nuevo. Revisa los logs.")
+
             except Exception as e:
-                st.error(f"Error en la ejecución: {e}")
-    else:
-        st.warning("Asegúrate de haber subido un archivo.")
+                st.exception(e) # Esto nos dará el error exacto de Python
