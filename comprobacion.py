@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 import re
 from docx import Document
@@ -6,93 +5,75 @@ from spellchecker import SpellChecker
 from openai import OpenAI
 from dotenv import load_dotenv
 
+# Configuración básica
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 spell = SpellChecker(language='es')
 
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
-OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
+# RUTAS SIMPLIFICADAS: Todo relativo a este archivo
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Subimos un nivel si estamos en la carpeta 'scripts'
+ROOT_DIR = os.path.dirname(BASE_DIR) 
+INPUT_FOLDER = os.path.join(ROOT_DIR, "entrada")
+OUTPUT_FOLDER = os.path.join(ROOT_DIR, "salida")
+
+# Crear carpetas si no existen para evitar errores de "Ruta no encontrada"
+os.makedirs(INPUT_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-def limpiar_palabra(palabra):
-    return re.sub(r'[^\wáéíóúÁÉÍÓÚñÑ]', '', palabra)
-
-def auditar_bloque_ia(bloque_textos):
-    """Envía varios párrafos a la vez para ahorrar tiempo de conexión."""
-    # Unimos los párrafos con un marcador para que la IA sepa separarlos
-    contenido_unido = "\n---\n".join([f"P{i}: {t}" for i, t in bloque_textos])
-    
-    prompt = (
-        "Actúa como auditor. Te enviaré varios párrafos numerados (P1, P2...). "
-        "Para cada uno, si hay errores, pon: 'PX: Error -> Corrección'. "
-        "Si un párrafo es correcto, no menciones su número. "
-        "Respuesta mínima, sin introducciones."
-    )
-    
+def auditar_bloque(bloque):
+    """Envía un grupo de párrafos para ganar velocidad sin perder precisión."""
+    texto_para_ia = "\n".join([f"ID_{i}: {t}" for i, t in bloque])
     try:
         res = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "system", "content": prompt}, {"role": "user", "content": contenido_unido}],
+            messages=[
+                {"role": "system", "content": "Eres un corrector ortográfico. REGLA: Si hay error, responde 'ID_X: error -> corrección'. Si no hay, no digas nada de ese ID. NO REESCRIBAS EL TEXTO."},
+                {"role": "user", "content": texto_para_ia}
+            ],
             temperature=0
         )
         return res.choices[0].message.content.strip()
     except:
         return ""
 
-def comprobar_archivo(name):
-    doc = Document(os.path.join(INPUT_FOLDER, name))
-    informe = [f"INFORME DE AUDITORÍA: {name}\n" + "="*40 + "\n"]
-    sospechosos = []
-    
-    print(f"Leyendo y filtrando localmente...")
-    for i, p in enumerate(doc.paragraphs):
-        texto = p.text.strip()
-        if len(texto) < 5: continue
+def procesar():
+    archivos = [f for f in os.listdir(INPUT_FOLDER) if f.endswith(".docx")]
+    if not archivos:
+        print("No hay archivos en la carpeta 'entrada'.")
+        return
 
-        # Filtro local rápido
-        mecanicos = []
-        if "  " in texto: mecanicos.append("Doble espacio")
-        
-        palabras = [limpiar_palabra(w) for w in texto.split() if limpiar_palabra(w)]
-        desconocidas = spell.unknown(palabras)
+    for nombre_fichero in archivos:
+        print(f"--- Iniciando: {nombre_fichero} ---")
+        doc = Document(os.path.join(INPUT_FOLDER, nombre_fichero))
+        pendientes_ia = []
+        informe = [f"AUDITORÍA: {nombre_fichero}\n" + "="*30]
 
-        if desconocidas or mecanicos:
-            # Guardamos el índice y el texto para enviarlos en bloque
-            sospechosos.append((i + 1, texto, mecanicos))
+        for i, p in enumerate(doc.paragraphs):
+            texto = p.text.strip()
+            if len(texto) < 4: continue
 
-    # PROCESAMIENTO EN BLOQUES (BATCHING) de 15 en 15
-    print(f"Enviando {len(sospechosos)} párrafos sospechosos a la IA en bloques...")
-    resultados_finales = {}
-    
-    for j in range(0, len(sospechosos), 15):
-        bloque = sospechosos[j:j+15]
-        # Solo enviamos el índice y el texto a la IA
-        peticion_ia = [(item[0], item[1]) for item in bloque]
-        respuesta = auditar_bloque_ia(peticion_ia)
-        
-        # Guardamos la respuesta de la IA vinculada al número de párrafo
-        for linea in respuesta.split('\n'):
-            if ':' in linea and linea.startswith('P'):
-                try:
-                    num_p = int(linea.split(':')[0][1:])
-                    resultados_finales[num_p] = linea.split(':', 1)[1].strip()
-                except: continue
+            # Filtro 1: Doble espacio (Gratis/Rápido)
+            if "  " in texto:
+                informe.append(f"Párrafo {i+1}: [FORMATO] Doble espacio detectado.")
 
-    # Construir el informe final combinando Regex e IA
-    for num, texto, mecanicos in sospechosos:
-        ia_sug = resultados_finales.get(num)
-        if mecanicos or ia_sug:
-            informe.append(f"📍 PÁRRAFO {num}\nTEXTO: {texto[:100]}...")
-            for m in mecanicos: informe.append(f"   - [FORMATO]: {m}")
-            if ia_sug: informe.append(f"   - [SUGERENCIA]: {ia_sug}")
-            informe.append("-" * 30)
+            # Filtro 2: Diccionario (Gratis/Rápido)
+            palabras = re.findall(r'\b\w+\b', texto.lower())
+            if spell.unknown(palabras):
+                pendientes_ia.append((i+1, texto))
 
-    with open(os.path.join(OUTPUT_FOLDER, f"AUDITORIA_{name}.txt"), "w", encoding="utf-8") as f:
-        f.write("\n".join(informe))
+        # Procesar con IA en bloques de 10 (Más seguro que 15 para evitar cortes)
+        for j in range(0, len(pendientes_ia), 10):
+            bloque = pendientes_ia[j:j+10]
+            respuesta = auditar_bloque(bloque)
+            if respuesta:
+                informe.append(f"\nSugerencias detectadas:\n{respuesta}")
+
+        # Guardar resultado
+        ruta_txt = os.path.join(OUTPUT_FOLDER, f"RESULTADO_{nombre_fichero}.txt")
+        with open(ruta_txt, "w", encoding="utf-8") as f:
+            f.write("\n".join(informe))
+        print(f"--- Finalizado: {ruta_txt} ---")
 
 if __name__ == "__main__":
-    for f in os.listdir(INPUT_FOLDER):
-        if f.endswith(".docx"):
-            comprobar_archivo(f)
-            print(f"✅ Finalizado: {f}")
+    procesar()
