@@ -5,6 +5,7 @@ from docx.shared import RGBColor
 from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI
 from dotenv import load_dotenv
+import time
 
 from token_monitor import log_tokens
 
@@ -78,7 +79,6 @@ Devuelve solo el fragmento corregido.
 def corregir_verbal_micro(fragmento):
     if not fragmento.strip():
         return fragmento
-
     try:
         res = client.chat.completions.create(
             model=MODEL_MINI,
@@ -88,12 +88,9 @@ def corregir_verbal_micro(fragmento):
             ],
             temperature=0
         )
-
         log_tokens(model=MODEL_MINI, usage=res.usage, tag="micro_verbal")
-
         r = res.choices[0].message.content.strip()
         return r if r else fragmento
-
     except Exception as e:
         print("⚠️ micro_verbal error:", e)
         return fragmento
@@ -106,7 +103,7 @@ def limpieza_mecanica(texto):
     texto = re.sub(r'([a-zA-ZáéíóúÁÉÍÓÚ0-9])([¿¡«])', r'\1 \2', texto)
     return re.sub(r' +', ' ', texto).strip()
 
-# ---------- NUEVA CAPA PYTHON (0 TOKENS, SEGURA) ----------
+# ---------- NUEVA CAPA PYTHON ----------
 def correcciones_gramaticales_seguras(texto):
     reglas = [
         (r'\bsi habría\b', 'si hubiera'),
@@ -126,7 +123,6 @@ def corregir_bloque(texto):
     if not texto.strip():
         return texto
     try:
-        # ---- FASE 1: PROMPT BASE (intacto) ----
         res = client.chat.completions.create(
             model=MODEL_MINI,
             messages=[
@@ -135,9 +131,7 @@ def corregir_bloque(texto):
             ],
             temperature=0
         )
-
         log_tokens(model=MODEL_MINI, usage=res.usage, tag="mini")
-
         r = res.choices[0].message.content.strip()
 
         if not r or len(r) < len(texto) * 0.85:
@@ -149,21 +143,15 @@ def corregir_bloque(texto):
                 ],
                 temperature=0
             )
-
             log_tokens(model=MODEL_FULL, usage=res.usage, tag="fallback_full")
             r = res.choices[0].message.content.strip()
 
-        # ---- FASE 2: MICRO VERBAL (IA CONTROLADA) ----
-        if True:   # ← SOLO PARA PRUEBA
-            r2 = corregir_verbal_micro(r)
-            if r2 and r2.strip():
-                r = r2
+        r2 = corregir_verbal_micro(r)
+        if r2 and r2.strip():
+            r = r2
 
-        # ---- NIVEL PYTHON SEGURO ----
         r = correcciones_gramaticales_seguras(r)
-
         return limpieza_mecanica(r)
-
     except:
         return texto
 
@@ -190,16 +178,7 @@ def pintar_quirurgico(parrafo, original, corregido):
 def procesar_archivo(name):
     print(f"📄 Procesando: {name}")
     doc = Document(os.path.join(INPUT_FOLDER, name))
-
-    parrafos = []
-    for p in doc.paragraphs:
-        parrafos.append(p)
-    for t in doc.tables:
-        for r in t.rows:
-            for c in r.cells:
-                for p in c.paragraphs:
-                    parrafos.append(p)
-
+    parrafos = [p for p in doc.paragraphs]
     textos_originales = [p.text for p in parrafos]
 
     with ThreadPoolExecutor(max_workers=8) as exe:
@@ -211,36 +190,44 @@ def procesar_archivo(name):
     doc.save(os.path.join(OUTPUT_FOLDER, name.replace(".docx", "_CORREGIDO.docx")))
     print("✔ Finalizado.")
 
-# ---------- MODULO DE COMPROBACION ----------
+# ---------- MODULO DE COMPROBACION (OPTIMIZADO) ----------
 def comprobar_archivo(name):
+    print(f"🔍 Iniciando comprobación rápida de: {name}")
     ruta_entrada = os.path.join(INPUT_FOLDER, name)
     doc = Document(ruta_entrada)
-    informe = [f"AUDITORÍA DE CALIDAD: {name}\n" + "="*40 + "\n"]
+    
+    # Extraemos solo párrafos con texto
+    p_objetos = [p for p in doc.paragraphs if p.text.strip()]
+    textos_originales = [p.text.strip() for p in p_objetos]
 
-    for i, p in enumerate(doc.paragraphs):
-        texto_original = p.text.strip()
-        if not texto_original: continue
-        
-        # IMPORTANTE: Aquí usa el nombre de la función que limpia tu texto
-        # Si tu función se llama 'limpiar_texto' o similar, cámbialo aquí:
-        texto_limpio = corregir_bloque(texto_original)
-        
-        if texto_limpio != texto_original:
+    print(f"📡 Analizando {len(textos_originales)} párrafos en paralelo...")
+    
+    # PROCESAMIENTO EN PARALELO (Crucial para que no sea lento)
+    with ThreadPoolExecutor(max_workers=8) as exe:
+        resultados = list(exe.map(corregir_bloque, textos_originales))
+
+    informe = [f"AUDITORÍA DE CALIDAD: {name}\n" + "="*40 + "\n"]
+    encontrados = 0
+
+    for i, (ori, limpio) in enumerate(zip(textos_originales, resultados)):
+        if ori != limpio:
+            encontrados += 1
             informe.append(f"📍 PÁRRAFO {i+1}")
-            informe.append(f"ORIGINAL:  {texto_original}")
-            informe.append(f"SUGERENCIA: {texto_limpio}")
+            informe.append(f"ORIGINAL:   {ori}")
+            informe.append(f"SUGERENCIA: {limpio}")
             informe.append("-" * 20)
 
     nombre_txt = f"VALIDACION_{name.replace('.docx', '')}.txt"
     ruta_txt = os.path.join(OUTPUT_FOLDER, nombre_txt)
+    
     with open(ruta_txt, "w", encoding="utf-8") as f:
         f.write("\n".join(informe))
-    return ruta_txt  
+    
+    print(f"✅ Informe generado: {nombre_txt} con {encontrados} avisos.")
+    return nombre_txt
+
 # ---------- MAIN ----------
 if __name__ == "__main__":
     archivos = [f for f in os.listdir(INPUT_FOLDER) if f.endswith(".docx")]
     for a in archivos:
         procesar_archivo(a)
-
-    print("🏁 Procesamiento COMPLETADO. Todos los archivos han finalizado correctamente.")
-
