@@ -3,8 +3,8 @@ import os
 import streamlit as st
 
 # MÓDULOS
-import comprobacion          # SOLO comprobación (sin IA)
-import precorreccion         # SOLO corrección (con IA)
+import comprobacion  # SOLO comprobación (sin IA)
+import precorreccion  # SOLO corrección (con IA)
 
 # ---------- RUTAS ----------
 # Usamos las mismas carpetas para ambos
@@ -44,10 +44,7 @@ if archivo is not None:
                 contenido = f.read()
 
             st.download_button(
-                "Descargar informe",
-                contenido,
-                file_name=informe,
-                mime="text/plain"
+                "Descargar informe", contenido, file_name=informe, mime="text/plain"
             )
 
     # ---------- CORRECCIÓN (CON IA) ----------
@@ -64,5 +61,5 @@ if archivo is not None:
                     "Descargar Word corregido",
                     f,
                     file_name=nombre_corregido,
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 )
