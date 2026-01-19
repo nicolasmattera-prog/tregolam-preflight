@@ -27,7 +27,6 @@ REGLAS = [
     ("Signo pegado", re.compile(r'[a-zA-ZáéíóúÁÉÍÓÚ][¿¡]')),
     ("Espacio antes de coma/punto", re.compile(r'\s+[,.]')),
     ("Comillas no latinas", re.compile(r'[“”"]')),
-    ("Interrogativo sin tilde", re.compile(r'\b(que|como|cuando|cuanto|donde|quien|cual)\b', re.IGNORECASE)),
 ]
 
 # ---------- COMPROBACIÓN ----------
@@ -61,3 +60,4 @@ def comprobar_archivo(name):
         f.write("\n".join(informe))
 
     return nombre_txt
+
