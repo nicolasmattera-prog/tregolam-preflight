@@ -9,8 +9,8 @@ st.title("🐋 Tregolam Preflight")
 
 # 1. Crear estructura de carpetas que requiere tu script
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
-OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
+INPUT_FOLDER = os.path.join(BASE_DIR, "..", "entrada")
+OUTPUT_FOLDER = os.path.join(BASE_DIR, "..", "salida")
 os.makedirs(INPUT_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
@@ -54,3 +54,4 @@ if st.button("🚀 INICIAR CORRECCIÓN"):
                 st.code(traceback.format_exc())
     else:
         st.warning("Por favor, carga un archivo .docx")
+
