@@ -2,7 +2,6 @@ import streamlit as st
 import os
 import shutil
 import precorreccion
-import auditar
 import traceback
 import time
 
@@ -42,16 +41,11 @@ if btn_correccion or btn_comprobacion:
                 with st.status("Procesando Corrección Total...") as status:
                     precorreccion.procesar_archivo(archivo.name)
                     time.sleep(1)
-                    auditar.auditar_archivos(archivo.name)
                     status.update(label="✅ Corrección completada", state="complete")
 
             elif btn_comprobacion:
                 with st.status("Analizando sin modificar...") as status:
-                    # Crear archivo "corregido" falso (igual al original) para que auditar tenga con qué comparar
-                    nombre_corregido = archivo.name.replace(".docx", "_CORREGIDO.docx")
-                    ruta_corregido = os.path.join(OUTPUT_FOLDER, nombre_corregido)
-                    shutil.copy(ruta_entrada, ruta_corregido)
-                    auditar.auditar_archivos(archivo.name)
+                    precorreccion.comprobar_archivo(archivo.name)
                     status.update(label="✅ Análisis finalizado", state="complete")
 
         except Exception as e:
@@ -62,11 +56,13 @@ if btn_correccion or btn_comprobacion:
 if archivo:
     st.divider()
     nombre_base = archivo.name.replace(".docx", "")
+
     ruta_docx = os.path.join(OUTPUT_FOLDER, f"{nombre_base}_CORREGIDO.docx")
     if os.path.exists(ruta_docx):
         with open(ruta_docx, "rb") as f:
             st.download_button("⭐ DESCARGAR DOCX CORREGIDO", f, file_name=f"{nombre_base}_CORREGIDO.docx", use_container_width=True)
-    ruta_txt = os.path.join(OUTPUT_FOLDER, f"MUESTRAS_CAMBIO_{nombre_base}.txt")
+
+    ruta_txt = os.path.join(OUTPUT_FOLDER, f"VALIDACION_{nombre_base}.txt")
     if os.path.exists(ruta_txt):
         with open(ruta_txt, "r", encoding="utf-8") as f:
             st.download_button("📄 DESCARGAR INFORME DE ERRORES (.txt)", f.read(), file_name=f"validación_{nombre_base}.txt", use_container_width=True)
