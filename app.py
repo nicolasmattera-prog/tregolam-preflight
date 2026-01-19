@@ -62,12 +62,10 @@ if btn_correccion or btn_comprobacion:
 if archivo:
     st.divider()
     nombre_base = archivo.name.replace(".docx", "")
-
     ruta_docx = os.path.join(OUTPUT_FOLDER, f"{nombre_base}_CORREGIDO.docx")
     if os.path.exists(ruta_docx):
         with open(ruta_docx, "rb") as f:
             st.download_button("⭐ DESCARGAR DOCX CORREGIDO", f, file_name=f"{nombre_base}_CORREGIDO.docx", use_container_width=True)
-
     ruta_txt = os.path.join(OUTPUT_FOLDER, f"MUESTRAS_CAMBIO_{nombre_base}.txt")
     if os.path.exists(ruta_txt):
         with open(ruta_txt, "r", encoding="utf-8") as f:
