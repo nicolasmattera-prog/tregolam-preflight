@@ -33,6 +33,7 @@ if btn_correccion or btn_comprobacion:
                     except:
                         pass
 
+            # Guardar archivo ANTES de procesar
             ruta_entrada = os.path.join(INPUT_FOLDER, archivo.name)
             with open(ruta_entrada, "wb") as f:
                 f.write(archivo.getbuffer())
