@@ -223,7 +223,7 @@ def comprobar_archivo(name):
         
         # IMPORTANTE: Aquí usa el nombre de la función que limpia tu texto
         # Si tu función se llama 'limpiar_texto' o similar, cámbialo aquí:
-        texto_limpio = procesar_parrafo(texto_original) # <--- OJO AQUÍ
+        texto_limpio = corregir_bloque(texto_original)
         
         if texto_limpio != texto_original:
             informe.append(f"📍 PÁRRAFO {i+1}")
@@ -243,3 +243,4 @@ if __name__ == "__main__":
         procesar_archivo(a)
 
     print("🏁 Procesamiento COMPLETADO. Todos los archivos han finalizado correctamente.")
+
