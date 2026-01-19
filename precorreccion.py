@@ -153,9 +153,9 @@ def corregir_bloque(texto):
                 r = res.choices[0].message.content.strip()
 
             # ---- FASE 2: MICRO VERBAL ----
-            r2 = corregir_verbal_micro(r)
-            if r2 and r2.strip():
-                r = r2
+            # r2 = corregir_verbal_micro(r)
+            # if r2 and r2.strip():
+               #  r = r2
 
             # ---- NIVEL PYTHON SEGURO ----
             r = correcciones_gramaticales_seguras(r)
@@ -202,7 +202,7 @@ def procesar_archivo(name):
     parrafos = [p for p in doc.paragraphs]
     textos_originales = [p.text for p in parrafos]
 
-    with ThreadPoolExecutor(max_workers=8) as exe:
+    with ThreadPoolExecutor(max_workers=3) as exe:
         resultados = list(exe.map(corregir_bloque, textos_originales))
 
     for p, corregido in zip(parrafos, resultados):
@@ -224,7 +224,7 @@ def comprobar_archivo(name):
     print(f"📡 Analizando {len(textos_originales)} párrafos en paralelo...")
     
     # PROCESAMIENTO EN PARALELO (Crucial para que no sea lento)
-    with ThreadPoolExecutor(max_workers=8) as exe:
+    with ThreadPoolExecutor(max_workers=3) as exe:
         resultados = list(exe.map(corregir_bloque, textos_originales))
 
     informe = [f"AUDITORÍA DE CALIDAD: {name}\n" + "="*40 + "\n"]
@@ -252,4 +252,5 @@ if __name__ == "__main__":
     archivos = [f for f in os.listdir(INPUT_FOLDER) if f.endswith(".docx")]
     for a in archivos:
         procesar_archivo(a)
+
 
