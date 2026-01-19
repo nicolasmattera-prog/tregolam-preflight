@@ -67,12 +67,15 @@ if btn_correccion or btn_comprobacion:
                     auditar.auditar_archivos(archivo.name)
                     status.update(label="✅ Corrección completada", state="complete")
             
-            elif btn_comprobacion:
+                        elif btn_comprobacion:
                 st.session_state["modo"] = "comprobacion"
                 with st.status("Analizando sin modificar...") as status:
-                    # Aquí usamos el motor de auditar o precorreccion solo para informe
-                    # Si auditar ya detecta errores comparando, podemos forzar un informe
-                    auditar.auditar_archivos(archivo.name) 
+                    # Crear archivo "corregido" falso (igual al original) para que auditar tenga con qué comparar
+                    nombre_corregido = archivo.name.replace(".docx", "_CORREGIDO.docx")
+                    ruta_corregido = os.path.join(OUTPUT_FOLDER, nombre_corregido)
+                    shutil.copy(ruta_entrada, ruta_corregido)  # ← copia idéntica
+                    # Ahora sí ejecutamos auditar
+                    auditar.auditar_archivos(archivo.name)
                     status.update(label="✅ Análisis finalizado", state="complete")
 
         except Exception as e:
@@ -102,3 +105,4 @@ if st.session_state["archivo_nombre"]:
             st.download_button("📄 DESCARGAR INFORME DE ERRORES (.txt)", f.read(), file_name=f"validación_{nombre_base}.txt", use_container_width=True)
     else:
         st.warning("No se encontraron errores significativos o el informe no se generó.")
+
