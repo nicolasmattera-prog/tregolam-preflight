@@ -118,42 +118,63 @@ def correcciones_gramaticales_seguras(texto):
         texto = re.sub(patron, reemplazo, texto, flags=re.IGNORECASE)
     return texto
 
-# ---------- CORRECCIÓN ----------
+# ---------- CORRECCIÓN CON REINTENTOS ----------
 def corregir_bloque(texto):
     if not texto.strip():
         return texto
-    try:
-        res = client.chat.completions.create(
-            model=MODEL_MINI,
-            messages=[
-                {"role": "system", "content": PROMPT},
-                {"role": "user", "content": texto}
-            ],
-            temperature=0
-        )
-        log_tokens(model=MODEL_MINI, usage=res.usage, tag="mini")
-        r = res.choices[0].message.content.strip()
-
-        if not r or len(r) < len(texto) * 0.85:
+    
+    intentos_maximos = 3
+    for intento in range(intentos_maximos):
+        try:
+            # ---- FASE 1: PROMPT BASE ----
             res = client.chat.completions.create(
-                model=MODEL_FULL,
+                model=MODEL_MINI,
                 messages=[
                     {"role": "system", "content": PROMPT},
                     {"role": "user", "content": texto}
                 ],
-                temperature=0
+                temperature=0,
+                timeout=40
             )
-            log_tokens(model=MODEL_FULL, usage=res.usage, tag="fallback_full")
+            log_tokens(model=MODEL_MINI, usage=res.usage, tag="mini")
             r = res.choices[0].message.content.strip()
 
-        r2 = corregir_verbal_micro(r)
-        if r2 and r2.strip():
-            r = r2
+            # ---- FALLBACK A MODELO FULL (Si la respuesta es muy corta o falla) ----
+            if not r or len(r) < len(texto) * 0.80:
+                res = client.chat.completions.create(
+                    model=MODEL_FULL,
+                    messages=[
+                        {"role": "system", "content": PROMPT},
+                        {"role": "user", "content": texto}
+                    ],
+                    temperature=0
+                )
+                log_tokens(model=MODEL_FULL, usage=res.usage, tag="fallback_full")
+                r = res.choices[0].message.content.strip()
 
-        r = correcciones_gramaticales_seguras(r)
-        return limpieza_mecanica(r)
-    except:
-        return texto
+            # ---- FASE 2: MICRO VERBAL ----
+            r2 = corregir_verbal_micro(r)
+            if r2 and r2.strip():
+                r = r2
+
+            # ---- NIVEL PYTHON SEGURO ----
+            r = correcciones_gramaticales_seguras(r)
+
+            # ---- LIMPIEZA FINAL ----
+            return limpieza_mecanica(r)
+
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "rate_limit" in error_msg or "429" in error_msg:
+                tiempo_espera = (intento + 1) * 3 # Esperamos 3, 6, 9 segundos
+                print(f"⏳ Límite OpenAI alcanzado. Reintentando en {tiempo_espera}s...")
+                time.sleep(tiempo_espera)
+                continue
+            
+            print(f"⚠️ Error inesperado: {e}")
+            return texto # En error crítico, devolvemos original
+            
+    return texto
 
 # ---------- PINTADO ----------
 def pintar_quirurgico(parrafo, original, corregido):
@@ -231,3 +252,4 @@ if __name__ == "__main__":
     archivos = [f for f in os.listdir(INPUT_FOLDER) if f.endswith(".docx")]
     for a in archivos:
         procesar_archivo(a)
+
