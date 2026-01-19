@@ -3,12 +3,12 @@ import os
 import shutil
 import precorreccion
 import traceback
-import auditar  # <-- necesario para el informe
+import auditar
 
 st.set_page_config(page_title="Tregolam Preflight", page_icon="🐋")
 st.title("🐋 Tregolam Preflight")
 
-# 1. Crear estructura de carpetas que requiere tu script
+# Crear carpetas necesarias
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
@@ -19,27 +19,24 @@ archivo = st.file_uploader("Sube tu manuscrito (.docx)", type=["docx"])
 
 if st.button("🚀 INICIAR CORRECCIÓN"):
     if archivo:
-        # Limpiar carpetas de intentos previos
+        # Limpiar carpetas
         shutil.rmtree(INPUT_FOLDER)
         os.makedirs(INPUT_FOLDER)
         shutil.rmtree(OUTPUT_FOLDER)
         os.makedirs(OUTPUT_FOLDER)
 
-        # 2. Guardar el archivo donde tu script lo espera (carpeta entrada)
         ruta_entrada = os.path.join(INPUT_FOLDER, archivo.name)
         with open(ruta_entrada, "wb") as f:
             f.write(archivo.getbuffer())
 
         with st.status("Ejecutando corrección quirúrgica...", expanded=True) as status:
             try:
-                # 3. Lanzar la función principal de TU script
                 precorreccion.procesar_archivo(archivo.name)
 
-                # 4. Buscar el resultado en la carpeta 'salida'
                 nombre_salida = archivo.name.replace(".docx", "_CORREGIDO.docx")
                 ruta_salida = os.path.join(OUTPUT_FOLDER, nombre_salida)
 
-if os.path.exists(ruta_salida):
+                if os.path.exists(ruta_salida):
                     status.update(label="✅ ¡CORRECCIÓN FINALIZADA!", state="complete")
                     with open(ruta_salida, "rb") as f:
                         st.download_button(
@@ -48,7 +45,6 @@ if os.path.exists(ruta_salida):
                             file_name=nombre_salida,
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                         )
-                    # Guardamos en el estado que la corrección terminó
                     st.session_state["corregido"] = archivo.name
                 else:
                     st.error("El proceso terminó pero no se encontró el archivo en la carpeta 'salida'.")
@@ -59,7 +55,7 @@ if os.path.exists(ruta_salida):
     else:
         st.warning("Por favor, carga un archivo .docx")
 
-# --- BOTÓN OPCIONAL: DESCARGAR INFORME (FUERA DEL BOTÓN PRINCIPAL) ---
+# Botón opcional: descargar informe
 if st.session_state.get("corregido"):
     informe = auditar.generar_informe_txt(st.session_state["corregido"])
     nombre_informe = st.session_state["corregido"].replace(".docx", "_INFORME.txt")
@@ -69,5 +65,3 @@ if st.session_state.get("corregido"):
         file_name=nombre_informe,
         mime="text/plain"
     )
-
-
