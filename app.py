@@ -15,7 +15,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
 
-# 2. Sincronizar carpetas con los módulos
+# 2. Sincronizar módulos
 precorreccion.INPUT_FOLDER = INPUT_FOLDER
 precorreccion.OUTPUT_FOLDER = OUTPUT_FOLDER
 auditar.ORIGINAL_FOLDER = INPUT_FOLDER
@@ -24,8 +24,8 @@ auditar.CORREGIDO_FOLDER = OUTPUT_FOLDER
 os.makedirs(INPUT_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-if "corregido" not in st.session_state:
-    st.session_state["corregido"] = None
+if "archivo_listo" not in st.session_state:
+    st.session_state["archivo_listo"] = None
 
 archivo = st.file_uploader("Sube tu manuscrito (.docx)", type=["docx"])
 
@@ -45,49 +45,51 @@ if st.button("🚀 INICIAR CORRECCIÓN"):
                 f.write(archivo.getbuffer())
 
             with st.status("Procesando documento...") as status:
-                # Ejecutar corrección
+                # 1. Corrección
                 precorreccion.procesar_archivo(archivo.name)
                 time.sleep(1)
                 
-                # Ejecutar auditoría (esto crea los archivos .txt y .html en la carpeta 'salida')
+                # 2. Auditoría
                 auditar.auditar_archivos(archivo.name)
                 
-                nombre_salida = archivo.name.replace(".docx", "_CORREGIDO.docx")
-                ruta_salida = os.path.join(OUTPUT_FOLDER, nombre_salida)
-
-                if os.path.exists(ruta_salida):
-                    st.session_state["corregido"] = archivo.name
-                    status.update(label="✅ ¡Hecho!", state="complete")
-                    
-                    with open(ruta_salida, "rb") as f:
-                        st.download_button("📥 DESCARGAR DOCX", f, file_name=nombre_salida)
-                else:
-                    st.error("No se generó el archivo corregido.")
+                st.session_state["archivo_listo"] = archivo.name
+                status.update(label="✅ ¡Todo procesado correctamente!", state="complete")
 
         except Exception as e:
             st.error(f"Error: {e}")
             st.code(traceback.format_exc())
 
-# --- SECCIÓN DEL INFORME REPARADA ---
-if st.session_state["corregido"]:
+# --- SECCIÓN DE DESCARGAS (Visible siempre que el proceso haya terminado) ---
+if st.session_state["archivo_listo"]:
     st.divider()
-    st.subheader("📋 Informes de Auditoría")
+    st.subheader("📥 Resultados disponibles")
     
-    # Buscamos los archivos que tu auditar.py acaba de crear
-    nombre_base = st.session_state["corregido"].replace(".docx", "")
+    nombre_base = st.session_state["archivo_listo"].replace(".docx", "")
+    ruta_docx = os.path.join(OUTPUT_FOLDER, f"{nombre_base}_CORREGIDO.docx")
     ruta_txt = os.path.join(OUTPUT_FOLDER, f"MUESTRAS_CAMBIO_{nombre_base}.txt")
     ruta_html = os.path.join(OUTPUT_FOLDER, f"AUDITORIA_{nombre_base}.html")
 
+    # Botón Principal de Corrección
+    if os.path.exists(ruta_docx):
+        with open(ruta_docx, "rb") as f:
+            st.download_button(
+                label="⭐ DESCARGAR MANUSCRITO CORREGIDO (.docx)",
+                data=f,
+                file_name=f"{nombre_base}_CORREGIDO.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True
+            )
+    
+    st.write("---")
+    
+    # Botones de Informe
     col1, col2 = st.columns(2)
-
     with col1:
         if os.path.exists(ruta_txt):
             with open(ruta_txt, "r", encoding="utf-8") as f:
-                st.download_button("📄 DESCARGAR INFORME (.txt)", f.read(), file_name=f"informe_{nombre_base}.txt")
-        else:
-            st.info("Generando informe TXT...")
-
+                st.download_button("📄 Informe de Cambios (.txt)", f.read(), file_name=f"informe_{nombre_base}.txt")
+    
     with col2:
         if os.path.exists(ruta_html):
             with open(ruta_html, "r", encoding="utf-8") as f:
-                st.download_button("🌐 DESCARGAR COMPARATIVA (HTML)", f.read(), file_name=f"auditoria_{nombre_base}.html")
+                st.download_button("🌐 Auditoría Visual (HTML)", f.read(), file_name=f"auditoria_{nombre_base}.html")
