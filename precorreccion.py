@@ -5,7 +5,6 @@ from docx.shared import RGBColor
 from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI
 from dotenv import load_dotenv
-import time
 
 from token_monitor import log_tokens
 
@@ -79,6 +78,7 @@ Devuelve solo el fragmento corregido.
 def corregir_verbal_micro(fragmento):
     if not fragmento.strip():
         return fragmento
+
     try:
         res = client.chat.completions.create(
             model=MODEL_MINI,
@@ -88,9 +88,12 @@ def corregir_verbal_micro(fragmento):
             ],
             temperature=0
         )
+
         log_tokens(model=MODEL_MINI, usage=res.usage, tag="micro_verbal")
+
         r = res.choices[0].message.content.strip()
         return r if r else fragmento
+
     except Exception as e:
         print("⚠️ micro_verbal error:", e)
         return fragmento
@@ -103,7 +106,7 @@ def limpieza_mecanica(texto):
     texto = re.sub(r'([a-zA-ZáéíóúÁÉÍÓÚ0-9])([¿¡«])', r'\1 \2', texto)
     return re.sub(r' +', ' ', texto).strip()
 
-# ---------- NUEVA CAPA PYTHON ----------
+# ---------- NUEVA CAPA PYTHON (0 TOKENS, SEGURA) ----------
 def correcciones_gramaticales_seguras(texto):
     reglas = [
         (r'\bsi habría\b', 'si hubiera'),
@@ -118,63 +121,51 @@ def correcciones_gramaticales_seguras(texto):
         texto = re.sub(patron, reemplazo, texto, flags=re.IGNORECASE)
     return texto
 
-# ---------- CORRECCIÓN CON REINTENTOS ----------
+# ---------- CORRECCIÓN ----------
 def corregir_bloque(texto):
     if not texto.strip():
         return texto
-    
-    intentos_maximos = 3
-    for intento in range(intentos_maximos):
-        try:
-            # ---- FASE 1: PROMPT BASE ----
+    try:
+        # ---- FASE 1: PROMPT BASE (intacto) ----
+        res = client.chat.completions.create(
+            model=MODEL_MINI,
+            messages=[
+                {"role": "system", "content": PROMPT},
+                {"role": "user", "content": texto}
+            ],
+            temperature=0
+        )
+
+        log_tokens(model=MODEL_MINI, usage=res.usage, tag="mini")
+
+        r = res.choices[0].message.content.strip()
+
+        if not r or len(r) < len(texto) * 0.85:
             res = client.chat.completions.create(
-                model=MODEL_MINI,
+                model=MODEL_FULL,
                 messages=[
                     {"role": "system", "content": PROMPT},
                     {"role": "user", "content": texto}
                 ],
-                temperature=0,
-                timeout=40
+                temperature=0
             )
-            log_tokens(model=MODEL_MINI, usage=res.usage, tag="mini")
+
+            log_tokens(model=MODEL_FULL, usage=res.usage, tag="fallback_full")
             r = res.choices[0].message.content.strip()
 
-            # ---- FALLBACK A MODELO FULL (Si la respuesta es muy corta o falla) ----
-            if not r or len(r) < len(texto) * 0.80:
-                res = client.chat.completions.create(
-                    model=MODEL_FULL,
-                    messages=[
-                        {"role": "system", "content": PROMPT},
-                        {"role": "user", "content": texto}
-                    ],
-                    temperature=0
-                )
-                log_tokens(model=MODEL_FULL, usage=res.usage, tag="fallback_full")
-                r = res.choices[0].message.content.strip()
+        # ---- FASE 2: MICRO VERBAL (IA CONTROLADA) ----
+        if True:   # ← SOLO PARA PRUEBA
+            r2 = corregir_verbal_micro(r)
+            if r2 and r2.strip():
+                r = r2
 
-            # ---- FASE 2: MICRO VERBAL ----
-            # r2 = corregir_verbal_micro(r)
-            # if r2 and r2.strip():
-               #  r = r2
+        # ---- NIVEL PYTHON SEGURO ----
+        r = correcciones_gramaticales_seguras(r)
 
-            # ---- NIVEL PYTHON SEGURO ----
-            r = correcciones_gramaticales_seguras(r)
+        return limpieza_mecanica(r)
 
-            # ---- LIMPIEZA FINAL ----
-            return limpieza_mecanica(r)
-
-        except Exception as e:
-            error_msg = str(e).lower()
-            if "rate_limit" in error_msg or "429" in error_msg:
-                tiempo_espera = (intento + 1) * 3 # Esperamos 3, 6, 9 segundos
-                print(f"⏳ Límite OpenAI alcanzado. Reintentando en {tiempo_espera}s...")
-                time.sleep(tiempo_espera)
-                continue
-            
-            print(f"⚠️ Error inesperado: {e}")
-            return texto # En error crítico, devolvemos original
-            
-    return texto
+    except:
+        return texto
 
 # ---------- PINTADO ----------
 def pintar_quirurgico(parrafo, original, corregido):
@@ -199,10 +190,19 @@ def pintar_quirurgico(parrafo, original, corregido):
 def procesar_archivo(name):
     print(f"📄 Procesando: {name}")
     doc = Document(os.path.join(INPUT_FOLDER, name))
-    parrafos = [p for p in doc.paragraphs]
+
+    parrafos = []
+    for p in doc.paragraphs:
+        parrafos.append(p)
+    for t in doc.tables:
+        for r in t.rows:
+            for c in r.cells:
+                for p in c.paragraphs:
+                    parrafos.append(p)
+
     textos_originales = [p.text for p in parrafos]
 
-    with ThreadPoolExecutor(max_workers=3) as exe:
+    with ThreadPoolExecutor(max_workers=8) as exe:
         resultados = list(exe.map(corregir_bloque, textos_originales))
 
     for p, corregido in zip(parrafos, resultados):
@@ -210,45 +210,6 @@ def procesar_archivo(name):
 
     doc.save(os.path.join(OUTPUT_FOLDER, name.replace(".docx", "_CORREGIDO.docx")))
     print("✔ Finalizado.")
-
-# ---------- MODULO DE COMPROBACION (OPTIMIZADO) ----------
-def comprobar_archivo(name):
-    print(f"🔍 Iniciando comprobación rápida de: {name}")
-    ruta_entrada = os.path.join(INPUT_FOLDER, name)
-    doc = Document(ruta_entrada)
-    
-    # Extraemos solo párrafos con texto
-    p_objetos = [p for p in doc.paragraphs if p.text.strip()]
-    textos_originales = [p.text.strip() for p in p_objetos]
-
-    print(f"📡 Analizando {len(textos_originales)} párrafos en paralelo...")
-    
-    # PROCESAMIENTO EN PARALELO (Crucial para que no sea lento)
-    with ThreadPoolExecutor(max_workers=3) as exe:
-        resultados = list(exe.map(corregir_bloque, textos_originales))
-
-    informe = [f"AUDITORÍA DE CALIDAD: {name}\n" + "=" * 40 + "\n"]
-    encontrados = 0
-
-    for i, (ori, limpio) in enumerate(zip(textos_originales, resultados)):
-        ori_n = normalizar_para_auditoria(ori)
-        lim_n = normalizar_para_auditoria(limpio)
-
-        if ori_n != lim_n:
-            encontrados += 1
-            informe.append(f"📍 PÁRRAFO {i+1}")
-            informe.append(f"ORIGINAL:   {ori}")
-            informe.append(f"SUGERENCIA: {limpio}")
-            informe.append("-" * 20)
-
-    nombre_txt = f"VALIDACION_{name.replace('.docx', '')}.txt"
-    ruta_txt = os.path.join(OUTPUT_FOLDER, nombre_txt)
-    
-    with open(ruta_txt, "w", encoding="utf-8") as f:
-        f.write("\n".join(informe))
-    
-    print(f"✅ Informe generado: {nombre_txt} con {encontrados} avisos.")
-    return nombre_txt
 
 # ---------- MAIN ----------
 if __name__ == "__main__":
