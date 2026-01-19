@@ -67,7 +67,7 @@ if btn_correccion or btn_comprobacion:
                     auditar.auditar_archivos(archivo.name)
                     status.update(label="✅ Corrección completada", state="complete")
             
-                        elif btn_comprobacion:
+            elif btn_comprobacion:
                 st.session_state["modo"] = "comprobacion"
                 with st.status("Analizando sin modificar...") as status:
                     # Crear archivo "corregido" falso (igual al original) para que auditar tenga con qué comparar
@@ -105,4 +105,5 @@ if st.session_state["archivo_nombre"]:
             st.download_button("📄 DESCARGAR INFORME DE ERRORES (.txt)", f.read(), file_name=f"validación_{nombre_base}.txt", use_container_width=True)
     else:
         st.warning("No se encontraron errores significativos o el informe no se generó.")
+
 
