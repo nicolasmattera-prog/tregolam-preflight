@@ -227,19 +227,19 @@ def comprobar_archivo(name):
     with ThreadPoolExecutor(max_workers=3) as exe:
         resultados = list(exe.map(corregir_bloque, textos_originales))
 
-    informe = [f"AUDITORÍA DE CALIDAD: {name}\n" + "="*40 + "\n"]
+    informe = [f"AUDITORÍA DE CALIDAD: {name}\n" + "=" * 40 + "\n"]
     encontrados = 0
 
     for i, (ori, limpio) in enumerate(zip(textos_originales, resultados)):
-    ori_n = normalizar_para_auditoria(ori)
-    lim_n = normalizar_para_auditoria(limpio)
+        ori_n = normalizar_para_auditoria(ori)
+        lim_n = normalizar_para_auditoria(limpio)
 
-    if ori_n != lim_n:
-        encontrados += 1
-        informe.append(f"📍 PÁRRAFO {i+1}")
-        informe.append(f"ORIGINAL:   {ori}")
-        informe.append(f"SUGERENCIA: {limpio}")
-        informe.append("-" * 20)
+        if ori_n != lim_n:
+            encontrados += 1
+            informe.append(f"📍 PÁRRAFO {i+1}")
+            informe.append(f"ORIGINAL:   {ori}")
+            informe.append(f"SUGERENCIA: {limpio}")
+            informe.append("-" * 20)
 
     nombre_txt = f"VALIDACION_{name.replace('.docx', '')}.txt"
     ruta_txt = os.path.join(OUTPUT_FOLDER, nombre_txt)
@@ -255,6 +255,7 @@ if __name__ == "__main__":
     archivos = [f for f in os.listdir(INPUT_FOLDER) if f.endswith(".docx")]
     for a in archivos:
         procesar_archivo(a)
+
 
 
 
