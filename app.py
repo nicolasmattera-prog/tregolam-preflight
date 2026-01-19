@@ -10,25 +10,23 @@ import time
 st.set_page_config(page_title="Tregolam Preflight", page_icon="🐋")
 st.title("🐋 Tregolam Preflight")
 
-# 1. Definición de rutas absolutas
+# 1. Rutas
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
 
-# 2. Sincronización de carpetas con los módulos externos
-# Esto asegura que precorreccion y auditar miren a las mismas carpetas que app.py
-for modulo in [precorreccion, auditar]:
-    modulo.INPUT_FOLDER = INPUT_FOLDER
-    modulo.OUTPUT_FOLDER = OUTPUT_FOLDER
+# 2. Sincronizar carpetas con los módulos
+precorreccion.INPUT_FOLDER = INPUT_FOLDER
+precorreccion.OUTPUT_FOLDER = OUTPUT_FOLDER
+auditar.ORIGINAL_FOLDER = INPUT_FOLDER
+auditar.CORREGIDO_FOLDER = OUTPUT_FOLDER
 
-# Crear carpetas si no existen (aunque ya las creaste en GitHub con .gitkeep)
 os.makedirs(INPUT_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 if "corregido" not in st.session_state:
     st.session_state["corregido"] = None
 
-# Interfaz de subida
 archivo = st.file_uploader("Sube tu manuscrito (.docx)", type=["docx"])
 
 if st.button("🚀 INICIAR CORRECCIÓN"):
@@ -36,66 +34,60 @@ if st.button("🚀 INICIAR CORRECCIÓN"):
         st.warning("Por favor, sube un archivo primero.")
     else:
         try:
-            # Limpiar archivos previos para evitar confusiones
+            # Limpiar carpetas
             for f in os.listdir(INPUT_FOLDER):
                 if f != ".gitkeep":
                     try: os.remove(os.path.join(INPUT_FOLDER, f))
                     except: pass
             
-            # Guardar el archivo subido en la carpeta de entrada
             ruta_entrada = os.path.join(INPUT_FOLDER, archivo.name)
             with open(ruta_entrada, "wb") as f:
                 f.write(archivo.getbuffer())
 
             with st.status("Procesando documento...") as status:
-                # Ejecutar el motor de corrección
+                # Ejecutar corrección
                 precorreccion.procesar_archivo(archivo.name)
-                time.sleep(1) # Pausa de seguridad para el sistema de archivos
+                time.sleep(1)
+                
+                # Ejecutar auditoría (esto crea los archivos .txt y .html en la carpeta 'salida')
+                auditar.auditar_archivos(archivo.name)
                 
                 nombre_salida = archivo.name.replace(".docx", "_CORREGIDO.docx")
                 ruta_salida = os.path.join(OUTPUT_FOLDER, nombre_salida)
 
                 if os.path.exists(ruta_salida):
                     st.session_state["corregido"] = archivo.name
-                    status.update(label="✅ ¡Documento listo!", state="complete")
+                    status.update(label="✅ ¡Hecho!", state="complete")
                     
                     with open(ruta_salida, "rb") as f:
-                        st.download_button(
-                            label="📥 DESCARGAR DOCX CORREGIDO",
-                            data=f,
-                            file_name=nombre_salida,
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                        )
+                        st.download_button("📥 DESCARGAR DOCX", f, file_name=nombre_salida)
                 else:
-                    st.error("Error: El archivo corregido no se encontró en la carpeta de salida.")
+                    st.error("No se generó el archivo corregido.")
 
         except Exception as e:
-            st.error(f"Error técnico en el proceso: {e}")
+            st.error(f"Error: {e}")
             st.code(traceback.format_exc())
 
-# --- SECCIÓN DEL INFORME (.txt) ---
+# --- SECCIÓN DEL INFORME REPARADA ---
 if st.session_state["corregido"]:
     st.divider()
-    st.subheader("📋 Informe de cambios")
-    try:
-        # Intentamos detectar la función correcta dinámicamente
-        # Probamos los nombres más comunes si el estándar falla
-        func_informe = None
-        for nombre in ['generar_informe_txt', 'generar_informe', 'crear_informe', 'generar_auditoria']:
-            if hasattr(auditar, nombre):
-                func_informe = getattr(auditar, nombre)
-                break
-        
-        if func_informe:
-            contenido_txt = func_informe(st.session_state["corregido"])
-            st.download_button(
-                label="📄 DESCARGAR INFORME (.txt)",
-                data=contenido_txt,
-                file_name=f"informe_{st.session_state['corregido']}.txt",
-                mime="text/plain"
-            )
+    st.subheader("📋 Informes de Auditoría")
+    
+    # Buscamos los archivos que tu auditar.py acaba de crear
+    nombre_base = st.session_state["corregido"].replace(".docx", "")
+    ruta_txt = os.path.join(OUTPUT_FOLDER, f"MUESTRAS_CAMBIO_{nombre_base}.txt")
+    ruta_html = os.path.join(OUTPUT_FOLDER, f"AUDITORIA_{nombre_base}.html")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if os.path.exists(ruta_txt):
+            with open(ruta_txt, "r", encoding="utf-8") as f:
+                st.download_button("📄 DESCARGAR INFORME (.txt)", f.read(), file_name=f"informe_{nombre_base}.txt")
         else:
-            st.error("No se encontró la función de informe en auditar.py. Revisa el nombre de la función.")
-            
-    except Exception as e:
-        st.error(f"Error al generar el archivo de texto: {e}")
+            st.info("Generando informe TXT...")
+
+    with col2:
+        if os.path.exists(ruta_html):
+            with open(ruta_html, "r", encoding="utf-8") as f:
+                st.download_button("🌐 DESCARGAR COMPARATIVA (HTML)", f.read(), file_name=f"auditoria_{nombre_base}.html")
