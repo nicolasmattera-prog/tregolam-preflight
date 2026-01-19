@@ -1,33 +1,18 @@
 #!/usr/bin/env python3
 import os
-import re
 from docx import Document
+
+# IMPORTAMOS LAS REGLAS YA EXISTENTES (SIN IA)
+from precorreccion import (
+    limpieza_mecanica,
+    correcciones_gramaticales_seguras
+)
 
 # ---------- RUTAS ----------
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
-
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-
-# ---------- NORMALIZACIÓN PARA AUDITORÍA ----------
-def normalizar_para_auditoria(texto):
-    if not texto:
-        return ""
-    t = texto
-    t = re.sub(r'\s+', ' ', t)
-    t = t.strip()
-    return t
-
-# ---------- REGLAS OBJETIVAS ----------
-REGLAS = [
-    ("Hora mal espaciada", re.compile(r'\b\d{1,2}:\s+\d{2}\b')),
-    ("Doble espacio", re.compile(r'  +')),
-    ("Puntuación duplicada", re.compile(r'([.,;:!?])\1+')),
-    ("Signo pegado", re.compile(r'[a-zA-ZáéíóúÁÉÍÓÚ][¿¡]')),
-    ("Espacio antes de coma/punto", re.compile(r'\s+[,.]')),
-    ("Comillas no latinas", re.compile(r'[“”"]')),
-]
 
 # ---------- COMPROBACIÓN ----------
 def comprobar_archivo(name):
@@ -37,21 +22,32 @@ def comprobar_archivo(name):
     informe = [f"AUDITORÍA DE CALIDAD: {name}\n" + "=" * 40 + "\n"]
     avisos = 0
 
-    for i, p in enumerate(doc.paragraphs):
+    # --- recoger TODOS los párrafos (texto + tablas) ---
+    parrafos = []
+    for p in doc.paragraphs:
+        parrafos.append(p)
+    for t in doc.tables:
+        for r in t.rows:
+            for c in r.cells:
+                for p in c.paragraphs:
+                    parrafos.append(p)
+
+    for i, p in enumerate(parrafos):
         texto = p.text
         if not texto.strip():
             continue
 
-        texto_norm = normalizar_para_auditoria(texto)
+        # Aplicamos reglas, PERO NO GUARDAMOS EL RESULTADO
+        texto_limpio = limpieza_mecanica(texto)
+        texto_reglas = correcciones_gramaticales_seguras(texto_limpio)
 
-        for motivo, patron in REGLAS:
-            if patron.search(texto_norm):
-                avisos += 1
-                informe.append(f"📍 PÁRRAFO {i+1}")
-                informe.append(f"MOTIVO: {motivo}")
-                informe.append(f"TEXTO: {texto}")
-                informe.append("-" * 20)
-                break  # un aviso por párrafo, suficiente
+        # Si alguna regla cambiaría algo → aviso
+        if texto_reglas != texto:
+            avisos += 1
+            informe.append(f"📍 PÁRRAFO {i+1}")
+            informe.append("MOTIVO: Posible errata mecánica / gramatical objetiva")
+            informe.append(f"TEXTO: {texto}")
+            informe.append("-" * 20)
 
     nombre_txt = f"VALIDACION_{name.replace('.docx', '')}.txt"
     ruta_txt = os.path.join(OUTPUT_FOLDER, nombre_txt)
@@ -60,4 +56,3 @@ def comprobar_archivo(name):
         f.write("\n".join(informe))
 
     return nombre_txt
-
