@@ -39,7 +39,7 @@ if st.button("🚀 INICIAR CORRECCIÓN"):
                 nombre_salida = archivo.name.replace(".docx", "_CORREGIDO.docx")
                 ruta_salida = os.path.join(OUTPUT_FOLDER, nombre_salida)
 
-                if os.path.exists(ruta_salida):
+                                if os.path.exists(ruta_salida):
                     status.update(label="✅ ¡CORRECCIÓN FINALIZADA!", state="complete")
                     with open(ruta_salida, "rb") as f:
                         st.download_button(
@@ -49,16 +49,8 @@ if st.button("🚀 INICIAR CORRECCIÓN"):
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                         )
 
-                    # --- BOTÓN OPCIONAL: DESCARGAR INFORME ---
-                    if st.button("📄 Descargar informe de correcciones"):
-                        informe = auditar.generar_informe_txt(archivo.name)
-                        nombre_informe = archivo.name.replace(".docx", "_INFORME.txt")
-                        st.download_button(
-                            label="📥 DESCARGAR INFORME",
-                            data=informe,
-                            file_name=nombre_informe,
-                            mime="text/plain"
-                        )
+                    # --- GUARDAR EN SESSION STATE QUE LA CORRECCIÓN TERMINÓ ---
+                    st.session_state["corregido"] = archivo.name
 
                 else:
                     st.error("El proceso terminó pero no se encontró el archivo en la carpeta 'salida'.")
@@ -68,3 +60,4 @@ if st.button("🚀 INICIAR CORRECCIÓN"):
                 st.code(traceback.format_exc())
     else:
         st.warning("Por favor, carga un archivo .docx")
+
