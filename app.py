@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 import os
 import streamlit as st
-import precorreccion
 
-# ---------- RUTAS (las mismas que precorreccion.py) ----------
-INPUT_FOLDER = precorreccion.INPUT_FOLDER
-OUTPUT_FOLDER = precorreccion.OUTPUT_FOLDER
+# MÓDULOS
+import comprobacion          # SOLO comprobación (sin IA)
+import precorreccion         # SOLO corrección (con IA)
+
+# ---------- RUTAS ----------
+# Usamos las mismas carpetas para ambos
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
+OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
+
 os.makedirs(INPUT_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 # ---------- UI ----------
-st.set_page_config(page_title="Tregolam Preflight", layout="centered")
+st.set_page_config(page_title="Tregolam · Preflight Word", layout="centered")
 st.title("Tregolam · Preflight Word")
 
 archivo = st.file_uploader("Sube un archivo Word (.docx)", type=["docx"])
@@ -19,7 +25,7 @@ if archivo is not None:
     nombre_original = os.path.basename(archivo.name)
     ruta_original = os.path.join(INPUT_FOLDER, nombre_original)
 
-    # Guardar el original en /entrada
+    # Guardar SIEMPRE el archivo subido en /entrada
     with open(ruta_original, "wb") as f:
         f.write(archivo.getbuffer())
 
@@ -27,11 +33,11 @@ if archivo is not None:
 
     col1, col2 = st.columns(2)
 
-    # ---------- COMPROBACIÓN ----------
+    # ---------- COMPROBACIÓN (SIN IA) ----------
     with col1:
         if st.button("Comprobar"):
-            with st.spinner("Analizando el documento…"):
-                informe = precorreccion.comprobar_archivo(nombre_original)
+            with st.spinner("Analizando erratas objetivas…"):
+                informe = comprobacion.comprobar_archivo(nombre_original)
 
             ruta_informe = os.path.join(OUTPUT_FOLDER, informe)
             with open(ruta_informe, "r", encoding="utf-8") as f:
@@ -44,10 +50,10 @@ if archivo is not None:
                 mime="text/plain"
             )
 
-    # ---------- CORRECCIÓN ----------
+    # ---------- CORRECCIÓN (CON IA) ----------
     with col2:
         if st.button("Corregir"):
-            with st.spinner("Procesando el manuscrito…"):
+            with st.spinner("Corrigiendo el manuscrito…"):
                 precorreccion.procesar_archivo(nombre_original)
 
             nombre_corregido = nombre_original.replace(".docx", "_CORREGIDO.docx")
