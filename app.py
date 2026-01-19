@@ -9,13 +9,14 @@ import time
 st.set_page_config(page_title="Tregolam Preflight", page_icon="🐋")
 st.title("🐋 Tregolam Preflight")
 
-# Rutas
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# RUTAS FORZADAS PARA STREAMLIT CLOUD
+BASE_DIR = os.getcwd() # Esto obtiene la raíz exacta en el servidor
 INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
 
-os.makedirs(INPUT_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+# Crear carpetas si no existen
+if not os.path.exists(INPUT_FOLDER): os.makedirs(INPUT_FOLDER)
+if not os.path.exists(OUTPUT_FOLDER): os.makedirs(OUTPUT_FOLDER)
 
 if "corregido" not in st.session_state:
     st.session_state["corregido"] = None
@@ -27,19 +28,18 @@ if st.button("🚀 INICIAR CORRECCIÓN"):
         st.warning("Por favor, sube un archivo primero.")
     else:
         try:
-            # Limpieza total
-            if os.path.exists(INPUT_FOLDER): shutil.rmtree(INPUT_FOLDER)
-            if os.path.exists(OUTPUT_FOLDER): shutil.rmtree(OUTPUT_FOLDER)
-            os.makedirs(INPUT_FOLDER)
-            os.makedirs(OUTPUT_FOLDER)
+            # Limpiar carpetas antes de empezar
+            for f in os.listdir(INPUT_FOLDER): os.remove(os.path.join(INPUT_FOLDER, f))
+            for f in os.listdir(OUTPUT_FOLDER): os.remove(os.path.join(OUTPUT_FOLDER, f))
 
+            # Guardar archivo subido
             ruta_entrada = os.path.join(INPUT_FOLDER, archivo.name)
             with open(ruta_entrada, "wb") as f:
                 f.write(archivo.getbuffer())
 
             with st.status("Procesando...") as status:
+                # LLAMADA AL MOTOR
                 precorreccion.procesar_archivo(archivo.name)
-                time.sleep(1)
                 
                 nombre_salida = archivo.name.replace(".docx", "_CORREGIDO.docx")
                 ruta_salida = os.path.join(OUTPUT_FOLDER, nombre_salida)
@@ -50,15 +50,17 @@ if st.button("🚀 INICIAR CORRECCIÓN"):
                     with open(ruta_salida, "rb") as f:
                         st.download_button("📥 DESCARGAR DOCX", f, file_name=nombre_salida)
                 else:
-                    st.error("No se encontró el archivo de salida.")
+                    st.error(f"El archivo corregido no aparece en: {ruta_salida}")
+
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Error en el proceso: {e}")
             st.code(traceback.format_exc())
 
+# Sección de informe (fuera del botón para que no desaparezca)
 if st.session_state["corregido"]:
     st.divider()
     try:
         inf = auditar.generar_informe_txt(st.session_state["corregido"])
         st.download_button("📄 DESCARGAR INFORME", inf, file_name="informe.txt")
     except:
-        st.info("Informe en proceso...")
+        st.info("Generando informe...")
