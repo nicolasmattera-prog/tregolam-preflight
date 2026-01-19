@@ -255,7 +255,3 @@ if __name__ == "__main__":
     archivos = [f for f in os.listdir(INPUT_FOLDER) if f.endswith(".docx")]
     for a in archivos:
         procesar_archivo(a)
-
-
-
-
