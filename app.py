@@ -39,7 +39,7 @@ if st.button("🚀 INICIAR CORRECCIÓN"):
                 nombre_salida = archivo.name.replace(".docx", "_CORREGIDO.docx")
                 ruta_salida = os.path.join(OUTPUT_FOLDER, nombre_salida)
 
-                if os.path.exists(ruta_salida):
+    if os.path.exists(ruta_salida):
                     status.update(label="✅ ¡CORRECCIÓN FINALIZADA!", state="complete")
                     with open(ruta_salida, "rb") as f:
                         st.download_button(
@@ -69,3 +69,4 @@ if st.session_state.get("corregido"):
         file_name=nombre_informe,
         mime="text/plain"
     )
+
