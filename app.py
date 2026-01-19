@@ -1,71 +1,49 @@
-import streamlit as st
+#!/usr/bin/env python3
 import os
-import shutil
+import streamlit as st
 import precorreccion
-import traceback
-import time
 
-st.set_page_config(page_title="Tregolam Preflight", page_icon="🐋")
-st.title("🐋 Tregolam Preflight")
-
-# Rutas
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# ---------- RUTAS ----------
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
+
 os.makedirs(INPUT_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-archivo = st.file_uploader("Sube tu manuscrito (.docx)", type=["docx"])
+# ---------- UI ----------
+st.set_page_config(page_title="Preflight Word", layout="centered")
+st.title("🔍 Preflight de manuscritos Word")
 
-btn_correccion = st.button("🚀 INICIAR CORRECCIÓN", use_container_width=True)
-btn_comprobacion = st.button("🔍 INICIAR COMPROBACIÓN", use_container_width=True)
+archivo = st.file_uploader(
+    "Sube un archivo Word (.docx)",
+    type=["docx"]
+)
 
-if btn_correccion or btn_comprobacion:
-    if not archivo:
-        st.warning("Por favor, sube un archivo primero.")
-    else:
+if archivo:
+    st.success(f"Archivo cargado: {archivo.name}")
+
+    if st.button("Comprobar"):
+        # ---------- GUARDAR ARCHIVO ----------
+        ruta = os.path.join(INPUT_FOLDER, archivo.name)
+        with open(ruta, "wb") as f:
+            f.write(archivo.getbuffer())
+
+        st.info("Archivo guardado. Iniciando comprobación...")
+
+        # ---------- PROCESO ----------
         try:
-            # Limpiar
-            for f in os.listdir(INPUT_FOLDER):
-                if f != ".gitkeep":
-                    try:
-                        os.remove(os.path.join(INPUT_FOLDER, f))
-                    except:
-                        pass
+            informe = precorreccion.comprobar_archivo(archivo.name)
+            st.success("✅ Comprobación finalizada")
 
-            # Guardar archivo ANTES de procesar
-            ruta_entrada = os.path.join(INPUT_FOLDER, archivo.name)
-            with open(ruta_entrada, "wb") as f:
-                f.write(archivo.getbuffer())
-
-            if btn_correccion:
-                with st.status("Procesando Corrección Total...") as status:
-                    precorreccion.procesar_archivo(archivo.name)
-                    time.sleep(1)
-                    status.update(label="✅ Corrección completada", state="complete")
-
-            elif btn_comprobacion:
-                with st.status("Analizando sin modificar...") as status:
-                    precorreccion.comprobar_archivo(archivo.name)
-                    status.update(label="✅ Análisis finalizado", state="complete")
+            ruta_informe = os.path.join(OUTPUT_FOLDER, informe)
+            with open(ruta_informe, "r", encoding="utf-8") as f:
+                st.text_area(
+                    "Informe de errores",
+                    f.read(),
+                    height=400
+                )
 
         except Exception as e:
-            st.error(f"Error: {e}")
-            st.code(traceback.format_exc())
-
-# Resultados
-if archivo:
-    st.divider()
-    nombre_base = archivo.name.replace(".docx", "")
-
-    ruta_docx = os.path.join(OUTPUT_FOLDER, f"{nombre_base}_CORREGIDO.docx")
-    if os.path.exists(ruta_docx):
-        with open(ruta_docx, "rb") as f:
-            st.download_button("⭐ DESCARGAR DOCX CORREGIDO", f, file_name=f"{nombre_base}_CORREGIDO.docx", use_container_width=True)
-
-    ruta_txt = os.path.join(OUTPUT_FOLDER, f"VALIDACION_{nombre_base}.txt")
-    if os.path.exists(ruta_txt):
-        with open(ruta_txt, "r", encoding="utf-8") as f:
-            st.download_button("📄 DESCARGAR INFORME DE ERRORES (.txt)", f.read(), file_name=f"validación_{nombre_base}.txt", use_container_width=True)
-    else:
-        st.warning("No se encontraron errores significativos o el informe no se generó.")
+            st.error("❌ Error durante la comprobación")
+            st.exception(e)
