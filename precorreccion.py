@@ -211,6 +211,31 @@ def procesar_archivo(name):
     doc.save(os.path.join(OUTPUT_FOLDER, name.replace(".docx", "_CORREGIDO.docx")))
     print("✔ Finalizado.")
 
+# ---------- MODULO DE COMPROBACION ----------
+def comprobar_archivo(name):
+    ruta_entrada = os.path.join(INPUT_FOLDER, name)
+    doc = Document(ruta_entrada)
+    informe = [f"AUDITORÍA DE CALIDAD: {name}\n" + "="*40 + "\n"]
+
+    for i, p in enumerate(doc.paragraphs):
+        texto_original = p.text.strip()
+        if not texto_original: continue
+        
+        # IMPORTANTE: Aquí usa el nombre de la función que limpia tu texto
+        # Si tu función se llama 'limpiar_texto' o similar, cámbialo aquí:
+        texto_limpio = procesar_parrafo(texto_original) # <--- OJO AQUÍ
+        
+        if texto_limpio != texto_original:
+            informe.append(f"📍 PÁRRAFO {i+1}")
+            informe.append(f"ORIGINAL:  {texto_original}")
+            informe.append(f"SUGERENCIA: {texto_limpio}")
+            informe.append("-" * 20)
+
+    nombre_txt = f"VALIDACION_{name.replace('.docx', '')}.txt"
+    ruta_txt = os.path.join(OUTPUT_FOLDER, nombre_txt)
+    with open(ruta_txt, "w", encoding="utf-8") as f:
+        f.write("\n".join(informe))
+    return ruta_txt  
 # ---------- MAIN ----------
 if __name__ == "__main__":
     archivos = [f for f in os.listdir(INPUT_FOLDER) if f.endswith(".docx")]
