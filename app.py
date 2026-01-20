@@ -1,26 +1,23 @@
-import os
-import sys
-import base64
 import streamlit as st
+from streamlit.components.v1 import html   # sólo si tu versión < 1.34
 
-# ======================================================
-# CONFIGURACIÓN STREAMLIT (CLAVE)
-# ======================================================
-st.markdown("""
+CSS = """
 <style>
-
-/* MARCO GENERAL DE LA APP */
-[data-testid="stAppViewContainer"] > .main {
-    border: 2px solid #d1d5db;   /* gris neutro */
+/* 1. Marco general */
+[data-testid="stAppViewContainer"] {
+    background-color: #ffffff !important;
+}
+[data-testid="stAppViewContainer"] > [data-testid="stAppViewBlockContainer"] {
+    border: 2px solid #d1d5db;
     border-radius: 8px;
     padding: 2.5rem;
     margin: 2rem auto;
     max-width: 1100px;
-    background-color: #ffffff;
 }
 
-/* BOTONES PRINCIPALES */
-button[kind="primary"] {
+/* 2. Botones creados con st.button */
+button[kind="primary"],          /* por si acaso */
+.stButton > button:first-of-type {
     background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
     color: #ffffff !important;
     border-radius: 8px !important;
@@ -28,14 +25,15 @@ button[kind="primary"] {
     font-weight: 600 !important;
     border: none !important;
 }
-
-button[kind="primary"]:hover {
+.stButton > button:first-of-type:hover {
     background: linear-gradient(135deg, #1e40af, #1d4ed8) !important;
-    transform: translateY(-1px);
+    transform: translateY(-1px) !important;
 }
-
 </style>
-""", unsafe_allow_html=True)
+"""
+
+# forma compatible con cualquier versión
+st.write(CSS, unsafe_allow_html=True)
 
 # ======================================================
 # LOGO (DESDE assets/)
@@ -125,6 +123,7 @@ if archivo is not None:
                             f,
                             file_name=nombre_corregido
                         )
+
 
 
 
