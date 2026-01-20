@@ -16,7 +16,7 @@ st.markdown("""
     margin: 2rem auto;
     max-width: 1100px;
     background-color: #ffffff;
-
+}
 /* BOTONES PRINCIPALES */
 button[kind="primary"] {
     background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
@@ -139,6 +139,7 @@ if archivo is not None:
                             f,
                             file_name=nombre_corregido
                         )
+
 
 
 
