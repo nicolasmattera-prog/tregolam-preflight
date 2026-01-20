@@ -3,67 +3,81 @@ from docx import Document
 from openai import OpenAI
 from dotenv import load_dotenv
 
-# 1. Configuración limpia
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def comprobar_archivo(nombre_original):
-    # 2. Rutas absolutas directas
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
+# ---------- PROMPT DE AUDITORÍA BASADO EN TUS 13 REGLAS ----------
+PROMPT_AUDITORIA = """Eres un AUDITOR DE ESTILO Y ORTOGRAFÍA. Tu objetivo es generar un informe de errores detallado.
+Analiza el texto basándote estrictamente en estas reglas:
+
+1. CIFRAS: 4 cifras juntas (4000), 5+ con espacio (20 000). Años sin puntos. Espacio antes de % (20 %).
+2. SÍMBOLOS: Espacio obligatorio (12 kg, 37,5 °C).
+3. ABREVIATURAS: EE. UU., n.º, pág.
+4. DIÁLOGOS: Raya larga (—) pegada al texto.
+5. COMILLAS: Solo latinas « ».
+8. CONCORDANCIA: Género/número y colectivos (la mayoría decidió).
+10. VOCATIVOS: Coma obligatoria (Marta, ven).
+11/12. PEGOTES: Espacio tras signos de puntuación (palabra. Otra).
+13. GRAMÁTICA: "Si habría" es incorrecto, debe ser "Si hubiera".
+ESTILO: Detectar voz pasiva, gerundios de posterioridad y frases pesadas.
+
+FORMATO DE SALIDA (ESTRICTO):
+ID_X: "fragmento original" -> "propuesta de corrección" (Breve explicación del error).
+
+REGLA DE ORO: Si no hay errores en un ID, no lo menciones. Si todo el bloque está perfecto, responde únicamente: "No se encontraron errores." """
+
+def comprobar_archivo(ruta_completa):
+    # Definir salida relativa a la raíz del proyecto
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
-    
-    # Asegurar que las carpetas existen para evitar errores de arranque
-    os.makedirs(INPUT_FOLDER, exist_ok=True)
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-    
-    ruta_input = os.path.join(INPUT_FOLDER, nombre_original)
-    
-    if not os.path.exists(ruta_input):
-        return f"ERROR: No se encuentra {nombre_original}"
 
-    # 3. Procesamiento
-    doc = Document(ruta_input)
-    informe = [f"AUDITORÍA: {nombre_original}\n" + "="*30]
-    
-    bloque = []
-    for i, p in enumerate(doc.paragraphs):
-        texto = p.text.strip()
-        if len(texto) < 5: continue
-        
-        bloque.append(f"ID_{i+1}: {texto}")
+    if not os.path.exists(ruta_completa):
+        return f"ERROR: No se encuentra el archivo en {ruta_completa}"
 
-        if len(bloque) >= 10:
-            res_ia = enviar_a_ia("\n".join(bloque))
-            if res_ia:
-                informe.append(res_ia)
-            bloque = []
-
-    if bloque:
-        res_ia = enviar_a_ia("\n".join(bloque))
-        if res_ia:
-            informe.append(res_ia)
-
-    # 4. Salida
-    nombre_txt = f"INFORME_{nombre_original.replace('.docx', '.txt')}"
-    ruta_salida = os.path.join(OUTPUT_FOLDER, nombre_txt)
-    
-    with open(ruta_salida, "w", encoding="utf-8") as f:
-        f.write("\n".join(informe))
-        
-    return nombre_txt
-
-def enviar_a_ia(texto_bloque):
     try:
-        response = client.chat.completions.create(
+        doc = Document(ruta_completa)
+        informe = [f"AUDITORÍA: {os.path.basename(ruta_completa)}\n" + "="*30]
+        
+        # Procesar párrafos
+        bloque = []
+        for i, p in enumerate(doc.paragraphs):
+            t = p.text.strip()
+            if len(t) > 5:
+                bloque.append(f"ID_{i+1}: {t}")
+            
+            if len(bloque) >= 15:
+                res = llamar_ia("\n".join(bloque))
+                if res and res != "No se encontraron errores.": 
+                    informe.append(res)
+                bloque = []
+        
+        if bloque:
+            res = llamar_ia("\n".join(bloque))
+            if res and res != "No se encontraron errores.": 
+                informe.append(res)
+
+        nombre_txt = f"INFORME_{os.path.basename(ruta_completa).replace('.docx', '.txt')}"
+        ruta_txt = os.path.join(OUTPUT_FOLDER, nombre_txt)
+        
+        with open(ruta_txt, "w", encoding="utf-8") as f:
+            f.write("\n".join(informe))
+            
+        return nombre_txt
+    except Exception as e:
+        return f"ERROR CRÍTICO: {str(e)}"
+
+def llamar_ia(texto):
+    try:
+        res = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Corrector ortográfico. Formato: ID_X: error -> corrección. Si no hay errores, no respondas nada."},
-                {"role": "user", "content": texto_bloque}
+                {"role": "system", "content": PROMPT_AUDITORIA},
+                {"role": "user", "content": texto}
             ],
-            temperature=0,
-            timeout=15
+            temperature=0, 
+            timeout=20
         )
-        return response.choices[0].message.content.strip()
-    except Exception:
+        return res.choices[0].message.content.strip()
+    except:
         return None
