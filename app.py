@@ -1,9 +1,10 @@
-import streamlit as st
-import os
 import sys
+import os
 
-# Añadimos la carpeta scripts al camino de búsqueda
+# Esto es lo que permite que app.py "vea" lo que hay dentro de /scripts
 sys.path.append(os.path.join(os.path.dirname(__file__), "scripts"))
+
+import precorreccion
 import comprobacion
 
 st.title("Auditoría Tregolam")
