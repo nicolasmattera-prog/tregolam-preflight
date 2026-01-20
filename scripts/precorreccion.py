@@ -17,10 +17,12 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 MODEL_MINI = "gpt-4o-mini"
 MODEL_FULL = "gpt-4o"
+# Rutas simplificadas para que funcionen tanto en local como en el servidor
+INPUT_FOLDER = "entrada"
+OUTPUT_FOLDER = "salida"
 
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
-OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
+# Asegurar que existan (por si acaso)
+os.makedirs(INPUT_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 # ---------- PROMPTS ULTRA-ESTRICTOS (MODO MOTOR) ----------
@@ -198,3 +200,4 @@ if __name__ == "__main__":
     else:
         for a in archivos:
             procesar_archivo(a)
+
