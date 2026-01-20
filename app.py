@@ -8,6 +8,17 @@ import streamlit as st
 # ======================================================
 st.markdown("""
 <style>
+/* MARCO GENERAL DE LA APP */
+[data-testid="stAppViewContainer"] > .main {
+    border: 2px solid #d1d5db;   /* gris neutro */
+    border-radius: 8px;
+    padding: 2.5rem;
+    margin: 2rem auto;
+    max-width: 1100px;
+    background-color: #ffffff;
+}
+
+""", unsafe_allow_html=True)
 
 /* BOTONES PRINCIPALES */
 button[kind="primary"] {
@@ -131,6 +142,7 @@ if archivo is not None:
                             f,
                             file_name=nombre_corregido
                         )
+
 
 
 
