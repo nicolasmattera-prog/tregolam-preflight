@@ -1,31 +1,59 @@
-import sys
+import streamlit as st
 import os
+import sys
 
-# Esto es lo que permite que app.py "vea" lo que hay dentro de /scripts
+# 1. Configuración de rutas para encontrar la carpeta 'scripts'
 sys.path.append(os.path.join(os.path.dirname(__file__), "scripts"))
 
+# 2. Importación de tus herramientas (ahora dentro de scripts/)
 import precorreccion
 import comprobacion
 
-st.title("Auditoría Tregolam")
+st.set_page_config(page_title="Auditoría Tregolam", layout="centered")
+st.title("🔍 Auditoría Ortotipográfica")
 
-uploaded_file = st.file_uploader("Sube tu archivo .docx", type="docx")
+# Subida de archivo
+uploaded_file = st.file_uploader("Sube tu manuscrito (.docx)", type="docx")
 
 if uploaded_file:
-    # Guardar en carpeta entrada
+    # Guardamos el archivo físicamente en la carpeta 'entrada'
     ruta_entrada = os.path.join("entrada", uploaded_file.name)
     with open(ruta_entrada, "wb") as f:
         f.write(uploaded_file.getbuffer())
     
-    if st.button("Comprobar"):
-        with st.spinner("Analizando..."):
-            # Pasamos la ruta relativa limpia
-            nombre_informe = comprobacion.comprobar_archivo(uploaded_file.name)
-            
-            if "ERROR" in nombre_informe:
-                st.error(nombre_informe)
-            else:
-                ruta_salida = os.path.join("salida", nombre_informe)
-                with open(ruta_salida, "rb") as f:
-                    st.download_button("Descargar Informe", f, file_name=nombre_informe)
-                st.success("Análisis finalizado.")
+    st.info(f"Archivo cargado: {uploaded_file.name}")
+    
+    col1, col2 = st.columns(2)
+
+    # --- BOTÓN 1: PRECORRECCIÓN ---
+    with col1:
+        if st.button("✨ Ejecutar Precorrección"):
+            with st.spinner("Limpiando espacios y formatos..."):
+                # Llamada al archivo en scripts/precorreccion.py
+                resultado = precorreccion.ejecutar_precorreccion(uploaded_file.name)
+                if "ERROR" in resultado:
+                    st.error(resultado)
+                else:
+                    st.success("¡Limpieza completada!")
+                    st.write(resultado)
+
+    # --- BOTÓN 2: COMPROBACIÓN (IA) ---
+    with col2:
+        if st.button("🤖 Ejecutar Auditoría"):
+            with st.spinner("Analizando con Inteligencia Artificial..."):
+                # Llamada al archivo en scripts/comprobacion.py
+                nombre_informe = comprobacion.comprobar_archivo(uploaded_file.name)
+                
+                if "ERROR" in nombre_informe:
+                    st.error(nombre_informe)
+                else:
+                    ruta_salida = os.path.join("salida", nombre_informe)
+                    # Ofrecer la descarga del informe generado
+                    with open(ruta_salida, "rb") as f:
+                        st.download_button(
+                            label="📥 Descargar Informe",
+                            data=f,
+                            file_name=nombre_informe,
+                            mime="text/plain"
+                        )
+                    st.success("Auditoría finalizada.")
