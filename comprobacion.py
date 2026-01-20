@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# ---------- PROMPT DE AUDITORÍA BASADO EN TUS 13 REGLAS ----------
+# PROMPT DE AUDITORÍA BASADO EN TUS 13 REGLAS
 PROMPT_AUDITORIA = """Eres un AUDITOR DE ESTILO Y ORTOGRAFÍA. Tu objetivo es generar un informe de errores detallado.
 Analiza el texto basándote estrictamente en estas reglas:
 
@@ -22,12 +22,11 @@ Analiza el texto basándote estrictamente en estas reglas:
 ESTILO: Detectar voz pasiva, gerundios de posterioridad y frases pesadas.
 
 FORMATO DE SALIDA (ESTRICTO):
-ID_X: "fragmento original" -> "propuesta de corrección" (Breve explicación del error).
+ID_X: "original" -> "corrección" (Explicación breve).
 
-REGLA DE ORO: Si no hay errores en un ID, no lo menciones. Si todo el bloque está perfecto, responde únicamente: "No se encontraron errores." """
+REGLA DE ORO: Si no hay errores en un ID, no lo mencIONES. Si todo el bloque está perfecto, responde únicamente: "No se encontraron errores." """
 
 def comprobar_archivo(ruta_completa):
-    # Definir salida relativa a la raíz del proyecto
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
@@ -39,22 +38,23 @@ def comprobar_archivo(ruta_completa):
         doc = Document(ruta_completa)
         informe = [f"AUDITORÍA: {os.path.basename(ruta_completa)}\n" + "="*30]
         
-        # Procesar párrafos
         bloque = []
         for i, p in enumerate(doc.paragraphs):
             t = p.text.strip()
             if len(t) > 5:
+                # Aquí es donde el ID se vincula al párrafo
                 bloque.append(f"ID_{i+1}: {t}")
             
             if len(bloque) >= 15:
                 res = llamar_ia("\n".join(bloque))
-                if res and res != "No se encontraron errores.": 
+                # Filtramos para que no guarde el aviso de "No hay errores"
+                if res and "No se encontraron errores" not in res:
                     informe.append(res)
                 bloque = []
         
         if bloque:
             res = llamar_ia("\n".join(bloque))
-            if res and res != "No se encontraron errores.": 
+            if res and "No se encontraron errores" not in res:
                 informe.append(res)
 
         nombre_txt = f"INFORME_{os.path.basename(ruta_completa).replace('.docx', '.txt')}"
