@@ -16,9 +16,6 @@ st.markdown("""
     margin: 2rem auto;
     max-width: 1100px;
     background-color: #ffffff;
-}
-
-""", unsafe_allow_html=True)
 
 /* BOTONES PRINCIPALES */
 button[kind="primary"] {
@@ -142,6 +139,7 @@ if archivo is not None:
                             f,
                             file_name=nombre_corregido
                         )
+
 
 
 
