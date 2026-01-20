@@ -114,7 +114,7 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 # ======================================================
 # INTERFAZ
 # ======================================================
-mostrar_logo("assets/Logo-tregolam.png", ancho=200)
+mostrar_logo("assets/logo-tregolam-completo.png", ancho=200)
 
 st.title("Tregolam · Preflight Word")
 
@@ -160,4 +160,5 @@ if archivo is not None:
                             f,
                             file_name=nombre_corregido
                         )
+
 
