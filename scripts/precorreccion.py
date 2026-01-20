@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, re, difflib
+import os, re, difflib, sys
 from docx import Document
 from docx.shared import RGBColor
 from concurrent.futures import ThreadPoolExecutor
@@ -12,20 +12,23 @@ try:
 except ImportError:
     def log_tokens(model, usage, tag): pass
 
-# ---------- CONFIGURACIÓN ----------
+# ---------- CONFIGURACIÓN DE RUTAS ABSOLUTAS ----------
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-MODEL_MINI = "gpt-4o-mini"
-MODEL_FULL = "gpt-4o"
-# Rutas simplificadas para que funcionen tanto en local como en el servidor
-INPUT_FOLDER = "entrada"
-OUTPUT_FOLDER = "salida"
 
-# Asegurar que existan (por si acaso)
+# Localizamos la raíz del proyecto subiendo un nivel desde 'scripts/'
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
+OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
+
+# Asegurar que existan las carpetas en la raíz
 os.makedirs(INPUT_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# ---------- PROMPTS ULTRA-ESTRICTOS (MODO MOTOR) ----------
+MODEL_MINI = "gpt-4o-mini"
+MODEL_FULL = "gpt-4o"
+
+# ---------- PROMPTS ULTRA-ESTRICTOS ----------
 PROMPT_F1 = """
 Eres un CORRECTOR ORTOGRÁFICO Y TIPOGRÁFICO de texto ya existente.  
 Tu única tarea es aplicar, SIN EXCEPCIONES, las reglas que se listan a continuación. Nada de lo que no se mencione está permitido.
@@ -39,39 +42,21 @@ Tu única tarea es aplicar, SIN EXCEPCIONES, las reglas que se listan a continua
 8. Ortografía y gramática básica: Tildes, diéresis, v/b, haches y concordancia simple (género/número).
 9. Signos de puntuación: Quita repeticiones (,, !!, ??).
 10. VOCATIVO: Coma obligatoria para separar el vocativo (ej: «Marta, cierra la puerta», «Hoy, amigos, celebramos»).
+11. ESPACIOS DE APERTURA: Siempre un espacio antes de ¿, ¡, o «.
+12. ESPACIOS DE CIERRE: Siempre un espacio después de . , ; :
+13. GRAMÁTICA: Corrige "si + habría" por "si + hubiera/hubiese".
 
-11. REGLA DE ESPACIOS DE APERTURA (OBLIGATORIA): 
-    - Siempre debe haber UN espacio entre la palabra anterior y el signo de apertura.
-    - Ejemplo correcto: «palabra ¿», «palabra ¡», «palabra «».
-    - NUNCA pegues el signo de apertura a la palabra que le precede.
-
-12. REGLA DE ESPACIOS DE CIERRE y PEGOTES:
-    - Siempre debe haber UN espacio después de punto, coma, punto y coma y dos puntos.
-    - Si dos frases están pegadas por un punto (ej: «autenticidad.Los»), separa OBLIGATORIAMENTE con un espacio: «autenticidad. Los».
-    - Nunca pegues una palabra inmediatamente después de un signo de puntuación de cierre.
-13. GRAMÁTICA: Corrige el uso de "si + habría" por "si + hubiera/hubiese"
-
-RESTRICCIONES ABSOLUTAS:
-- No cambies ni una palabra que esté bien escrita.
-- No añadas, suprimas ni reordenes frases.
-- No introduzcas comentarios, explicaciones ni ejemplos.
-- No uses asteriscos ni otros marcadores.
-- No generes párrafos nuevos ni líneas en blanco extra.
-- No corrijas estilo, solo errores ortográficos/tipográficos.
+RESTRICCIONES: No cambies estilo, no añadas comentarios, no borres frases.
 """
 
-# ---------- FASE 2: EDITOR DE ESTILO (AÑADIDO POSTERIOR) ----------
 PROMPT_F2 = """Eres editor literario. Tu única función es mejorar la agilidad verbal:
 1. GERUNDIOS DE POSTERIORIDAD: 'terminó, generando' -> 'terminó y generó'.
-2. VOZ PASIVA: Cámbiala a activa REORDENANDO la frase (Ejemplo: 'Los datos fueron analizados por el equipo' -> 'El equipo analizó los datos').
-3. ESTRUCTURAS PESADAS: Mejora el flujo natural de la frase y tiempos verbales (ej: 'no venía' -> 'no habría venido').
-4. LIMPIEZA LINGÜÍSTICA: Corrige queísmo/dequeísmo y concordancia de colectivos (ej: 'la mayoría decidió' en lugar de 'decidieron').
-
-REGLA DE ORO: Respeta escrupulosamente los espacios en cifras (20 000, 36,6 °C), símbolos y comillas « » de la fase anterior."""
+2. VOZ PASIVA: Cámbiala a activa.
+3. ESTRUCTURAS PESADAS: Mejora el flujo natural.
+4. LIMPIEZA LINGÜÍSTICA: Corrige queísmo/dequeísmo."""
 
 # ---------- FUNCIONES DE LIMPIEZA Y SEGURIDAD ----------
 def limpieza_residuos_chat(texto):
-    """Elimina cualquier intento de la IA de hablar o explicar lo que hizo."""
     patrones_basura = [
         r"^claro, aquí tienes.*?:", 
         r"^aquí está el texto.*?:",
@@ -87,9 +72,7 @@ def limpieza_residuos_chat(texto):
     return texto.strip().strip('"')
 
 def necesita_fase_2(texto):
-    """Detecta si el párrafo tiene potencial para contener vicios de estilo."""
     t = texto.lower()
-    # Gatillos: gerundios y formas de pasiva
     gatillos = [r"ando\b", r"endo\b", r"\bfue\b", r"\bfueron\b", r"\bser\b", r"\bsido\b", r"\bestar\b"]
     if any(re.search(p, t) for p in gatillos): return True
     if len(t.split()) > 15: return True
@@ -102,9 +85,8 @@ def es_alucinacion(res):
 # ---------- NÚCLEO DE PROCESAMIENTO ----------
 def corregir_bloque(texto):
     if len(texto.strip()) < 3: return texto
-    
     try:
-        # FASE 1: Ortografía (Mini)
+        # FASE 1: Ortografía (Temperatura 0 para evitar estocasticidad)
         res1 = client.chat.completions.create(
             model=MODEL_MINI,
             messages=[{"role": "system", "content": PROMPT_F1}, {"role": "user", "content": texto}],
@@ -113,91 +95,81 @@ def corregir_bloque(texto):
         log_tokens(MODEL_MINI, res1.usage, "F1_Orto")
         r = limpieza_residuos_chat(res1.choices[0].message.content.strip())
 
-        # CONTROL DE INTEGRIDAD (Si el Mini borra mucho, saltamos al Full)
+        # CONTROL DE INTEGRIDAD
         if es_alucinacion(r) or len(r) < len(texto) * 0.98:
             res_full = client.chat.completions.create(
                 model=MODEL_FULL,
                 messages=[{"role": "system", "content": PROMPT_F1}, {"role": "user", "content": texto}],
                 temperature=0
             )
-            log_tokens(MODEL_FULL, res_full.usage, "FALLBACK_FULL")
             r = limpieza_residuos_chat(res_full.choices[0].message.content.strip())
 
-        # FASE 2: Estilo Agresivo
+        # FASE 2: Estilo
         if necesita_fase_2(r):
             res2 = client.chat.completions.create(
                 model=MODEL_MINI,
                 messages=[{"role": "system", "content": PROMPT_F2}, {"role": "user", "content": r}],
                 temperature=0 
             )
-            log_tokens(MODEL_MINI, res2.usage, "F2_Estilo_Agresivo")
             r2 = limpieza_residuos_chat(res2.choices[0].message.content.strip())
-            
-            # Margen del 85% para permitir el ahorro de palabras de la voz activa
             if not es_alucinacion(r2) and (len(r) * 0.85 <= len(r2) <= len(r) * 1.2):
                 r = r2
-
         return r
     except Exception as e:
-        print(f"Error procesando bloque: {e}")
         return texto
 
-# ---------- PINTADO QUIRÚRGICO (SOLO CAMBIOS) ----------
 def aplicar_cambios_quirurgicos(parrafo, original, corregido):
     if original == corregido: return
-
-    # Guardar formato original
     era_cursiva = any(run.italic for run in parrafo.runs)
     for run in parrafo.runs: run.text = ""
-
-    # Comparar palabra por palabra
     s = difflib.SequenceMatcher(None, original.split(), corregido.split())
-    
     for tag, i1, i2, j1, j2 in s.get_opcodes():
         palabras = corregido.split()[j1:j2]
         if not palabras: continue
-        
         texto_segmento = " ".join(palabras) + " "
         run = parrafo.add_run(texto_segmento)
         run.font.name = 'Garamond'
         run.italic = era_cursiva
-        
-        # Azul intenso solo para lo que ha cambiado o se ha insertado
         if tag in ('replace', 'insert'):
-            run.font.color.rgb = RGBColor(0, 0, 180)
+            run.font.color.rgb = RGBColor(0, 0, 180) # Azul para cambios
         else:
             run.font.color.rgb = RGBColor(0, 0, 0)
 
-# ---------- PROCESO PRINCIPAL ----------
-def procesar_archivo(name):
-    print(f"🚀 Iniciando Preflight Profesional: {name}")
-    doc = Document(os.path.join(INPUT_FOLDER, name))
+# ---------- FUNCIÓN LLAMADA DESDE APP.PY ----------
+def ejecutar_precorreccion(name):
+    """
+    Función principal para la precorrección. 
+    Usa rutas absolutas para garantizar compatibilidad con Streamlit Cloud.
+    """
+    try:
+        ruta_archivo = os.path.join(INPUT_FOLDER, name)
+        if not os.path.exists(ruta_archivo):
+            return f"ERROR: No se encuentra {ruta_archivo}"
+
+        doc = Document(ruta_archivo)
+        objetivos = [p for p in doc.paragraphs]
+        for t in doc.tables:
+            for r in t.rows:
+                for c in r.cells:
+                    for p in c.paragraphs: objetivos.append(p)
+
+        textos_orig = [p.text for p in objetivos]
+        
+        with ThreadPoolExecutor(max_workers=8) as exe:
+            resultados = list(exe.map(corregir_bloque, textos_orig))
+
+        for p, orig, corr in zip(objetivos, textos_orig, resultados):
+            aplicar_cambios_quirurgicos(p, orig, corr)
+
+        ruta_salida = os.path.join(OUTPUT_FOLDER, name)
+        doc.save(ruta_salida)
+        return f"✅ Archivo '{name}' procesado y guardado en salida."
     
-    # Recopilar todos los párrafos (incluyendo tablas)
-    objetivos = [p for p in doc.paragraphs]
-    for t in doc.tables:
-        for r in t.rows:
-            for c in r.cells:
-                for p in c.paragraphs: objetivos.append(p)
-
-    textos_orig = [p.text for p in objetivos]
-    
-    # Procesamiento paralelo para máxima velocidad real (8 hilos)
-    with ThreadPoolExecutor(max_workers=8) as exe:
-        resultados = list(exe.map(corregir_bloque, textos_orig))
-
-    # Aplicar resultados al documento
-    for p, orig, corr in zip(objetivos, textos_orig, resultados):
-        aplicar_cambios_quirurgicos(p, orig, corr)
-
-    doc.save(os.path.join(OUTPUT_FOLDER, name))
-    print(f"✅ Preflight completado para {name}. Revisa la carpeta 'salida'.")
+    except Exception as e:
+        return f"ERROR en precorreccion: {str(e)}"
 
 if __name__ == "__main__":
+    # Para pruebas locales por consola
     archivos = [f for f in os.listdir(INPUT_FOLDER) if f.endswith(".docx")]
-    if not archivos:
-        print("❌ No se encontraron archivos .docx en la carpeta 'entrada'.")
-    else:
-        for a in archivos:
-            procesar_archivo(a)
-
+    for a in archivos:
+        print(ejecutar_precorreccion(a))
