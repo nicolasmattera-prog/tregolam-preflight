@@ -9,65 +9,36 @@ import streamlit as st
 st.markdown("""
 <style>
 
-/* FONDO GLOBAL */
-[data-testid="stAppViewContainer"] {
-    background-color: #f5f5f5;
-}
-
-/* CONTENEDOR PRINCIPAL */
-[data-testid="stAppViewContainer"] > .main {
-    max-width: 820px;
-    margin: auto;
-    padding: 2.5rem 2.5rem;
-}
-
-/* ===== HEADER (NO TARJETA) ===== */
-.app-header {
-    text-align: center;
-    margin-bottom: 2.5rem;
-}
-
-.app-header h1 {
-    font-weight: 600;
-    color: #1f1f1f;
-    letter-spacing: -0.02em;
-    margin-top: 0.5rem;
-}
-
-/* ===== TARJETAS SOLO DONDE TOCA ===== */
-.card {
-    background: #ffffff;
-    border-radius: 8px;
-    padding: 1.5rem;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-    margin-bottom: 1.5rem;
-}
-
-/* BOTONES */
+/* BOTONES PRINCIPALES */
 button[kind="primary"] {
-    background-color: #1f1f1f !important;
-    color: white !important;
-    border-radius: 6px !important;
-    padding: 0.6rem 1.2rem !important;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+    padding: 0.65rem 1.4rem !important;
+    font-weight: 600 !important;
     border: none !important;
 }
 
 button[kind="primary"]:hover {
-    background-color: #000000 !important;
+    background: linear-gradient(135deg, #1e40af, #1d4ed8) !important;
+    transform: translateY(-1px);
 }
 
-/* BOTONES DESCARGA */
+/* BOTONES SECUNDARIOS (DESCARGA) */
 [data-testid="stDownloadButton"] button {
     background-color: #ffffff !important;
-    color: #1f1f1f !important;
-    border: 1px solid #cccccc !important;
-    border-radius: 6px !important;
+    color: #2563eb !important;
+    border: 2px solid #2563eb !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
 }
 
-/* OCULTAR FOOTER */
-footer {
-    visibility: hidden;
+[data-testid="stDownloadButton"] button:hover {
+    background-color: #2563eb !important;
+    color: #ffffff !important;
 }
+
+footer { visibility: hidden; }
 
 </style>
 """, unsafe_allow_html=True)
@@ -160,5 +131,6 @@ if archivo is not None:
                             f,
                             file_name=nombre_corregido
                         )
+
 
 
