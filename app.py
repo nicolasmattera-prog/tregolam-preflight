@@ -8,6 +8,7 @@ import streamlit as st
 # ======================================================
 st.markdown("""
 <style>
+
 /* MARCO GENERAL DE LA APP */
 [data-testid="stAppViewContainer"] > .main {
     border: 2px solid #d1d5db;   /* gris neutro */
@@ -17,6 +18,7 @@ st.markdown("""
     max-width: 1100px;
     background-color: #ffffff;
 }
+
 /* BOTONES PRINCIPALES */
 button[kind="primary"] {
     background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
@@ -31,22 +33,6 @@ button[kind="primary"]:hover {
     background: linear-gradient(135deg, #1e40af, #1d4ed8) !important;
     transform: translateY(-1px);
 }
-
-/* BOTONES SECUNDARIOS (DESCARGA) */
-[data-testid="stDownloadButton"] button {
-    background-color: #ffffff !important;
-    color: #2563eb !important;
-    border: 2px solid #2563eb !important;
-    border-radius: 8px !important;
-    font-weight: 600 !important;
-}
-
-[data-testid="stDownloadButton"] button:hover {
-    background-color: #2563eb !important;
-    color: #ffffff !important;
-}
-
-footer { visibility: hidden; }
 
 </style>
 """, unsafe_allow_html=True)
@@ -139,6 +125,7 @@ if archivo is not None:
                             f,
                             file_name=nombre_corregido
                         )
+
 
 
 
