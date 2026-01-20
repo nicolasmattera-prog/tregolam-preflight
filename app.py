@@ -6,15 +6,6 @@ import streamlit as st
 # ======================================================
 # CONFIGURACIÓN STREAMLIT (CLAVE)
 # ======================================================
-st.set_page_config(
-    page_title="Tregolam · Preflight",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
-# ======================================================
-# CSS – SELECTORES ESTABLES (STREAMLIT ACTUAL)
-# ======================================================
 st.markdown("""
 <style>
 
@@ -23,37 +14,36 @@ st.markdown("""
     background-color: #f5f5f5;
 }
 
-/* CONTENEDOR CENTRAL */
+/* CONTENEDOR PRINCIPAL */
 [data-testid="stAppViewContainer"] > .main {
     max-width: 820px;
     margin: auto;
-    padding: 3rem 2.5rem;
+    padding: 2.5rem 2.5rem;
 }
 
-/* BLOQUES / TARJETAS */
-[data-testid="stVerticalBlock"] > div,
-[data-testid="stFileUploader"] {
-    background: #ffffff;
-    border-radius: 8px;
-    padding: 1.4rem;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-    margin-bottom: 1.4rem;
+/* ===== HEADER (NO TARJETA) ===== */
+.app-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
 }
 
-/* TÍTULO */
-h1 {
+.app-header h1 {
     font-weight: 600;
     color: #1f1f1f;
     letter-spacing: -0.02em;
+    margin-top: 0.5rem;
 }
 
-/* TEXTO */
-label, p {
-    color: #333333;
-    font-size: 0.95rem;
+/* ===== TARJETAS SOLO DONDE TOCA ===== */
+.card {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    margin-bottom: 1.5rem;
 }
 
-/* BOTONES PRINCIPALES */
+/* BOTONES */
 button[kind="primary"] {
     background-color: #1f1f1f !important;
     color: white !important;
@@ -74,7 +64,7 @@ button[kind="primary"]:hover {
     border-radius: 6px !important;
 }
 
-/* OCULTAR FOOTER STREAMLIT */
+/* OCULTAR FOOTER */
 footer {
     visibility: hidden;
 }
@@ -170,3 +160,4 @@ if archivo is not None:
                             f,
                             file_name=nombre_corregido
                         )
+
