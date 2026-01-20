@@ -3,94 +3,91 @@ import sys
 import base64
 import streamlit as st
 
-# =========================
-# CONFIGURACIÓN VISUAL (ESTILO ADOBE)
-# =========================
+# ======================================================
+# CONFIGURACIÓN STREAMLIT (CLAVE)
+# ======================================================
 st.set_page_config(
     page_title="Tregolam · Preflight",
-    layout="centered",
+    layout="wide",
     initial_sidebar_state="collapsed"
 )
 
+# ======================================================
+# CSS – SELECTORES ESTABLES (STREAMLIT ACTUAL)
+# ======================================================
 st.markdown("""
 <style>
 
-/* --- BASE --- */
-html, body, [class*="css"] {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
-                 Roboto, Helvetica, Arial, sans-serif;
+/* FONDO GLOBAL */
+[data-testid="stAppViewContainer"] {
     background-color: #f5f5f5;
 }
 
-/* --- CONTENEDOR PRINCIPAL --- */
-.block-container {
-    padding-top: 2.5rem;
-    padding-bottom: 2.5rem;
-    max-width: 720px;
+/* CONTENEDOR CENTRAL */
+[data-testid="stAppViewContainer"] > .main {
+    max-width: 820px;
+    margin: auto;
+    padding: 3rem 2.5rem;
 }
 
-/* --- TÍTULOS --- */
-h1, h2, h3 {
+/* BLOQUES / TARJETAS */
+[data-testid="stVerticalBlock"] > div,
+[data-testid="stFileUploader"] {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 1.4rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    margin-bottom: 1.4rem;
+}
+
+/* TÍTULO */
+h1 {
     font-weight: 600;
     color: #1f1f1f;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
 }
 
-/* --- TEXTO --- */
-p, label {
-    color: #3a3a3a;
+/* TEXTO */
+label, p {
+    color: #333333;
     font-size: 0.95rem;
 }
 
-/* --- FILE UPLOADER --- */
-section[data-testid="stFileUploader"] {
-    background: #ffffff;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    padding: 1.2rem;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+/* BOTONES PRINCIPALES */
+button[kind="primary"] {
+    background-color: #1f1f1f !important;
+    color: white !important;
+    border-radius: 6px !important;
+    padding: 0.6rem 1.2rem !important;
+    border: none !important;
 }
 
-/* --- BOTONES --- */
-.stButton > button {
-    width: 100%;
-    background-color: #1f1f1f;
-    color: #ffffff;
-    border: none;
-    border-radius: 4px;
-    padding: 0.6rem 1rem;
-    font-weight: 500;
+button[kind="primary"]:hover {
+    background-color: #000000 !important;
 }
 
-.stButton > button:hover {
-    background-color: #000000;
+/* BOTONES DESCARGA */
+[data-testid="stDownloadButton"] button {
+    background-color: #ffffff !important;
+    color: #1f1f1f !important;
+    border: 1px solid #cccccc !important;
+    border-radius: 6px !important;
 }
 
-/* --- BOTONES DOWNLOAD --- */
-.stDownloadButton > button {
-    background-color: #ffffff;
-    color: #1f1f1f;
-    border: 1px solid #d0d0d0;
-}
-
-.stDownloadButton > button:hover {
-    background-color: #f0f0f0;
-}
-
-/* --- MENSAJES --- */
-.stAlert {
-    border-radius: 6px;
-    font-size: 0.9rem;
+/* OCULTAR FOOTER STREAMLIT */
+footer {
+    visibility: hidden;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-# =========================
-# LOGO (DESDE /assets)
-# =========================
-def mostrar_logo(ruta_logo, ancho=180):
+# ======================================================
+# LOGO (DESDE assets/)
+# ======================================================
+def mostrar_logo(ruta_logo, ancho=200):
     if not os.path.exists(ruta_logo):
+        st.error(f"No se encuentra el logo en {ruta_logo}")
         return
 
     with open(ruta_logo, "rb") as f:
@@ -98,20 +95,18 @@ def mostrar_logo(ruta_logo, ancho=180):
 
     st.markdown(
         f"""
-        <div style="text-align:center; margin-bottom: 1.5rem;">
+        <div style="text-align:center; margin-bottom: 2rem;">
             <img src="data:image/png;base64,{datos}" width="{ancho}">
         </div>
         """,
         unsafe_allow_html=True
     )
 
-# =========================
+# ======================================================
 # LÓGICA ORIGINAL (SIN TOCAR)
-# =========================
+# ======================================================
 
-# 1. ESTO ARREGLA LA IMPORTACIÓN:
-# Como app.py está fuera y tus scripts dentro de /scripts,
-# añadimos la carpeta al path para que Python los encuentre.
+# Ajuste de imports
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 scripts_path = os.path.join(BASE_DIR, "scripts")
 if scripts_path not in sys.path:
@@ -120,16 +115,16 @@ if scripts_path not in sys.path:
 import comprobacion
 import precorreccion
 
-# 2. CONFIGURACIÓN DE RUTAS (Raíz)
+# Rutas
 INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
 os.makedirs(INPUT_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# =========================
+# ======================================================
 # INTERFAZ
-# =========================
-mostrar_logo("assets/logo.png", ancho=180)
+# ======================================================
+mostrar_logo("assets/Logo-tregolam.png", ancho=200)
 
 st.title("Tregolam · Preflight Word")
 
@@ -143,14 +138,15 @@ if archivo is not None:
         f.write(archivo.getbuffer())
 
     st.success(f"Archivo cargado: {nombre_original}")
+
     col1, col2 = st.columns(2)
 
     with col1:
         if st.button("Comprobar"):
             with st.spinner("Analizando..."):
                 informe = comprobacion.comprobar_archivo(nombre_original)
-
                 ruta_informe = os.path.join(OUTPUT_FOLDER, informe)
+
                 if os.path.exists(ruta_informe):
                     with open(ruta_informe, "r", encoding="utf-8") as f:
                         st.download_button(
