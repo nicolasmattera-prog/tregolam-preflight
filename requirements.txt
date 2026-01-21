@@ -2,4 +2,4 @@ streamlit
 python-docx
 python-dotenv
 pandas
-hunspell
+pyspellchecker
