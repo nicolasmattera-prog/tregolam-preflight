@@ -23,7 +23,6 @@ def corregir_texto(texto: str) -> str:
             texto = patron.sub(reemplazo, texto)
     return texto
 
-# ---------- FUNCIÓN DE PINTADO + TOOLTIP ----------
 def aplicar_cambios_quirurgicos(parrafo, original: str, corregido: str):
     if original == corregido:
         return
@@ -32,25 +31,8 @@ def aplicar_cambios_quirurgicos(parrafo, original: str, corregido: str):
     for run in parrafo.runs:
         run.text = ""
 
-    # Diff palabra a palabra
-    orig_words = original.split()
-    corr_words = corregido.split()
-    matcher = difflib.SequenceMatcher(None, orig_words, corr_words)
-
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag == 'equal':
-            texto = " ".join(corr_words[j1:j2]) + " "
-            run = parrafo.add_run(texto)
-            run.font.name = 'Garamond'
-            run.italic = any(r.italic for r in parrafo.runs)
-        else:
-            # Palabra cambiada
-            for o, c in zip(orig_words[i1:i2], corr_words[j1:j2]):
-                run = parrafo.add_run(c + " ")
-                run.font.name = 'Garamond'
-                run.font.color.rgb = RGBColor(0, 0, 180)  # azul
-                run.italic = any(r.italic for r in parrafo.runs)
-                add_tooltip(run, o, c)
+    run = parrafo.add_run(corregido)
+    run.font.name = 'Garamond'
 
 # ---------- FUNCIÓN PRINCIPAL ----------
 def ejecutar_precorreccion(name: str) -> str:
@@ -103,6 +85,7 @@ def ejecutar_precorreccion(name: str) -> str:
         return f"✅ Archivo '{name}' procesado y guardado en salida."
     except Exception as e:
         return f"ERROR en precorrección: {str(e)}"
+
 
 
 
