@@ -5,7 +5,7 @@ import difflib
 from docx import Document
 from docx.shared import RGBColor
 from regex_rules import RULES
-from .tooltip_helper import add_tooltip
+from tooltip_helper import add_tooltip
 
 # ---------- CONFIGURACIÓN DE RUTAS ----------
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -77,4 +77,5 @@ def ejecutar_precorreccion(name: str) -> str:
         return f"✅ Archivo '{name}' procesado y guardado en salida."
     except Exception as e:
         return f"ERROR en precorrección: {str(e)}"
+
 
