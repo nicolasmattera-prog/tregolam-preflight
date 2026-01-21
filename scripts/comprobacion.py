@@ -4,25 +4,33 @@ import sys
 import pandas as pd
 
 # 1. Configuración de rutas para encontrar la carpeta 'scripts'
-sys.path.append(os.path.join(os.path.dirname(__file__), "scripts"))
+# Aseguramos que el sistema encuentre comprobacion.py dentro de /scripts
+BASE_PATH = os.path.dirname(os.path.abspath(__file__))
+scripts_path = os.path.join(BASE_PATH, "scripts")
+if scripts_path not in sys.path:
+    sys.path.append(scripts_path)
 
-# 2. Importación de tus herramientas
-import precorreccion
-import comprobacion
+# 2. Importación de tus herramientas con manejo de errores
+try:
+    import precorreccion
+    import comprobacion
+except ImportError as e:
+    st.error(f"Error al importar scripts: {e}")
 
-# Configuración de página ancha para que las tablas se vean bien
+# Configuración de página ancha
 st.set_page_config(page_title="Auditoría Tregolam", layout="wide")
 st.title("🔍 Panel de Control: Auditoría Ortotipográfica")
+
+# Asegurar que existan las carpetas necesarias
+for folder in ["entrada", "salida"]:
+    if not os.path.exists(folder):
+        os.makedirs(folder)
 
 # Subida de archivo
 uploaded_file = st.file_uploader("Sube tu manuscrito (.docx)", type="docx")
 
 if uploaded_file:
-    # Guardamos el archivo físicamente en la carpeta 'entrada'
     ruta_entrada = os.path.join("entrada", uploaded_file.name)
-    if not os.path.exists("entrada"):
-        os.makedirs("entrada")
-    
     with open(ruta_entrada, "wb") as f:
         f.write(uploaded_file.getbuffer())
     
@@ -40,16 +48,20 @@ if uploaded_file:
     # --- BOTÓN 2: COMPROBACIÓN (IA) ---
     with col2:
         if st.button("🤖 2. Iniciar Auditoría IA"):
-            # Establecemos el nombre del informe en el estado de la sesión
-            st.session_state['informe_actual'] = f"Informe_{uploaded_file.name.replace('.docx', '.txt')}"
+            # Definimos el nombre del informe en el estado de la sesión de inmediato
+            nombre_final = f"Informe_{uploaded_file.name.replace('.docx', '.txt')}"
+            st.session_state['informe_actual'] = nombre_final
             
-            with st.spinner("Analizando manuscrito... Los resultados aparecerán abajo conforme se generen."):
-                nombre_informe = comprobacion.comprobar_archivo(uploaded_file.name)
-                
-                if "ERROR" in nombre_informe:
-                    st.error(nombre_informe)
+            with st.spinner("Analizando manuscrito... Los resultados aparecerán abajo."):
+                # Verificación de seguridad antes de llamar a la función
+                if hasattr(comprobacion, 'comprobar_archivo'):
+                    nombre_informe = comprobacion.comprobar_archivo(uploaded_file.name)
+                    if "ERROR" in nombre_informe:
+                        st.error(nombre_informe)
+                    else:
+                        st.success("¡Auditoría finalizada con éxito!")
                 else:
-                    st.success("¡Auditoría finalizada con éxito!")
+                    st.error("Error técnico: La función 'comprobar_archivo' no se encuentra en el script.")
 
     # --- RENDERIZADO DEL PANEL DE COLORES ---
     if 'informe_actual' in st.session_state:
@@ -64,7 +76,6 @@ if uploaded_file:
                 for line in lineas:
                     line = line.strip()
                     if "|" in line:
-                        # Procesamiento de columnas según el formato estricto del motor
                         partes = [p.strip() for p in line.split("|")]
                         if len(partes) >= 5:
                             datos.append({
@@ -78,8 +89,7 @@ if uploaded_file:
                 if datos:
                     df = pd.DataFrame(datos)
 
-                    # --- DETALLE: MARCAR ORIGINAL EN NEGRITA ---
-                    # Aplicamos negritas usando formato Markdown para resaltar erratas 
+                    # --- DETALLE SOLICITADO: MARCAR ORIGINAL EN NEGRITA ---
                     df["Original"] = df["Original"].apply(lambda x: f"**{x}**")
 
                     # SECCIÓN ROJA: ORTOGRAFÍA
@@ -88,7 +98,7 @@ if uploaded_file:
                     if not df_orto.empty:
                         st.data_editor(df_orto, use_container_width=True, hide_index=True, key="tabla_orto")
                     else:
-                        st.write("✅ Sin errores de ortografía detectados aún.")
+                        st.write("✅ Sin errores de ortografía detectados.")
 
                     # SECCIÓN AMARILLA: FORMATO
                     st.subheader("🟡 ERRORES DE FORMATO")
@@ -96,7 +106,7 @@ if uploaded_file:
                     if not df_form.empty:
                         st.data_editor(df_form, use_container_width=True, hide_index=True, key="tabla_form")
                     else:
-                        st.write("✅ Formato técnico correcto (Rayas, comillas, cifras).")
+                        st.write("✅ Formato técnico correcto.")
 
                     # SECCIÓN VERDE: SUGERENCIAS
                     st.subheader("🟢 SUGERENCIAS Y ESTILO")
@@ -106,11 +116,10 @@ if uploaded_file:
                     else:
                         st.write("✅ Sin sugerencias adicionales.")
                     
-                    # Opción de descarga del informe original (sin negritas para limpieza) 
                     with open(ruta_txt, "rb") as f:
-                        st.download_button("📥 Descargar Informe en Bruto (TXT)", f, file_name=st.session_state['informe_actual'])
+                        st.download_button("📥 Descargar Informe (TXT)", f, file_name=st.session_state['informe_actual'])
                 else:
-                    st.info("El análisis está en curso. Las tablas se llenarán automáticamente...")
+                    st.info("Procesando datos... las tablas se actualizarán pronto.")
             
             except Exception as e:
-                st.warning("Actualizando visualización de datos...")
+                st.warning("Cargando nuevos resultados...")
