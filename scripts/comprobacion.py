@@ -10,24 +10,24 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENTRADA_DIR = os.path.join(BASE_DIR, "entrada")
 SALIDA_DIR = os.path.join(BASE_DIR, "salida")
 
-PROMPT_AUDITORIA = """Actúa como un auditor ortotipográfico. Clasifica errores en: ORTOGRAFIA, FORMATO o SUGERENCIA.
+PROMPT_AUDITORIA = """Actúa como un auditor ortotipográfico experto. Tu tarea es clasificar errores en: ORTOGRAFIA, FORMATO o SUGERENCIA.
 
-REGLAS:
-1. CIFRAS: Espacio de no ruptura en miles (20 000).
-2. COMILLAS: Convertir "" en latinas « ».
-3. RAYAS: Diálogos con raya larga —pegada al texto.
-4. SIMBOLOS: Espacio entre cifra y símbolo (10 %).
+REGLAS TÉCNICAS:
+1. CIFRAS: Espacio de no ruptura en miles (Ej: 20 000). NO puntos ni comas.
+2. COMILLAS: Convertir "" o '' en latinas « ». SI YA SON « », NO REPORTAR NADA.
+3. RAYAS: Diálogos con raya larga — pegada al texto (Ej: —Hola).
+4. SÍMBOLOS: Espacio entre cifra y símbolo (Ej: 10 %).
 
-FORMATO DE SALIDA (ESTRICTO, UNA LINEA POR ERROR):
+FORMATO DE RESPUESTA (ESTRICTO - UNA SOLA LÍNEA POR ERROR):
 CATEGORIA | ID | ORIGINAL | CORRECCION | MOTIVO
-Si no hay errores, responde: S_OK"""
+Si no hay errores, responde únicamente: S_OK"""
 
 def comprobar_archivo(nombre_archivo):
     ruta_lectura = os.path.join(ENTRADA_DIR, nombre_archivo)
     nombre_txt = f"Informe_{nombre_archivo.replace('.docx', '.txt')}"
     ruta_txt = os.path.join(SALIDA_DIR, nombre_txt)
     
-    # Limpiar archivo previo
+    # Limpiamos el archivo para empezar de cero
     with open(ruta_txt, "w", encoding="utf-8") as f:
         f.write("")
 
@@ -41,25 +41,34 @@ def comprobar_archivo(nombre_archivo):
             
             if len(bloque) >= 8:
                 respuesta = llamar_ia("\n".join(bloque))
-                if respuesta and "S_OK" not in respuesta.upper():
-                    with open(ruta_txt, "a", encoding="utf-8") as f:
-                        # Limpiamos saltos de línea extra para que no se rompa el formato
-                        limpio = "\n".join([line.strip() for line in respuesta.split("\n") if "|" in line])
-                        if limpio:
-                            f.write(limpio + "\n")
+                procesar_y_guardar(respuesta, ruta_txt)
                 bloque = []
 
         if bloque:
             respuesta = llamar_ia("\n".join(bloque))
-            if respuesta and "S_OK" not in respuesta.upper():
-                with open(ruta_txt, "a", encoding="utf-8") as f:
-                    limpio = "\n".join([line.strip() for line in respuesta.split("\n") if "|" in line])
-                    if limpio:
-                        f.write(limpio + "\n")
+            procesar_y_guardar(respuesta, ruta_txt)
 
         return nombre_txt
     except Exception as e:
         return f"ERROR: {str(e)}"
+
+def procesar_y_guardar(respuesta, ruta_dest):
+    """Limpia la respuesta de la IA de cabeceras y líneas fragmentadas antes de guardar."""
+    if not respuesta or "S_OK" in respuesta.upper():
+        return
+
+    lineas_validas = []
+    # Dividimos por líneas y filtramos morralla
+    for linea in respuesta.split("\n"):
+        linea = linea.strip()
+        # Solo aceptamos líneas con el separador que NO sean la cabecera
+        if "|" in linea and "CATEGORIA" not in linea.upper() and "ORIGINAL" not in linea.upper():
+            # Limpiamos espacios internos para evitar saltos de línea fantasmas
+            lineas_validas.append(" ".join(linea.split()))
+
+    if lineas_validas:
+        with open(ruta_dest, "a", encoding="utf-8") as f:
+            f.write("\n".join(lineas_validas) + "\n")
 
 def llamar_ia(texto_bloque):
     try:
