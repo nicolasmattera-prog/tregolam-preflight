@@ -2,8 +2,9 @@ import streamlit as st
 import os
 import sys
 import pandas as pd
+import time
 
-# 1. Configuración de página (SIEMPRE AL PRINCIPIO)
+# 1. Configuración de página
 st.set_page_config(page_title="Auditoría Tregolam", layout="wide")
 
 # Rutas para scripts
@@ -17,11 +18,11 @@ import comprobacion
 
 st.title("🔍 Panel de Control: Auditoría Ortotipográfica")
 
-# Cargador de archivos con clave única para evitar errores de DuplicateID
-if "file_uploader_key" not in st.session_state:
-    st.session_state.file_uploader_key = "docx_uploader"
+# Evitar errores de ID con llaves únicas
+if "uploader_key" not in st.session_state:
+    st.session_state.uploader_key = 100
 
-uploaded_file = st.file_uploader("Sube tu manuscrito (.docx)", type="docx", key=st.session_state.file_uploader_key)
+uploaded_file = st.file_uploader("Sube tu manuscrito (.docx)", type="docx", key=st.session_state.uploader_key)
 
 if uploaded_file:
     ruta_entrada = os.path.join("entrada", uploaded_file.name)
@@ -34,27 +35,32 @@ if uploaded_file:
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("✨ 1. Ejecutar Precorrección", key="btn_pre"):
-            with st.spinner("Limpiando espacios..."):
+        if st.button("✨ 1. Ejecutar Precorrección", key="btn_p"):
+            with st.spinner("Limpiando..."):
                 st.success(precorreccion.ejecutar_precorreccion(uploaded_file.name))
 
     with col2:
-        if st.button("🤖 2. Iniciar Auditoría IA", key="btn_ia"):
-            st.session_state['informe_actual'] = f"Informe_{uploaded_file.name.replace('.docx', '.txt')}"
+        if st.button("🤖 2. Iniciar Auditoría IA", key="btn_i"):
+            nombre_inf = f"Informe_{uploaded_file.name.replace('.docx', '.txt')}"
+            st.session_state['informe_actual'] = nombre_inf
+            
             with st.spinner("Analizando con IA..."):
+                # Ejecutamos y forzamos refresco al terminar
                 comprobacion.comprobar_archivo(uploaded_file.name)
                 st.rerun()
 
-    # --- BLOQUE DE VISUALIZACIÓN UNIFICADO ---
+    # --- ZONA DE RENDERIZADO (OPTIMIZADA) ---
     if 'informe_actual' in st.session_state:
         ruta_txt = os.path.join("salida", st.session_state['informe_actual'])
         
         if os.path.exists(ruta_txt):
             datos = []
-            # PRIMERO: Leemos todo el archivo y acumulamos los datos
-            with open(ruta_txt, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
+            try:
+                # Leemos el archivo de una sola vez
+                with open(ruta_txt, "r", encoding="utf-8") as f:
+                    contenido = f.readlines()
+                
+                for line in contenido:
                     if "|" in line:
                         partes = [p.strip() for p in line.split("|")]
                         if len(partes) >= 5:
@@ -66,38 +72,32 @@ if uploaded_file:
                                 "Motivo": partes[4]
                             })
 
-            # SEGUNDO: Si hay datos, dibujamos las tablas UNA SOLA VEZ (Fuera del bucle for)
-            if datos:
-                df = pd.DataFrame(datos)
+                if datos:
+                    df = pd.DataFrame(datos)
 
-                def renderizar_tabla(titulo, filtro, emoji, id_tabla):
-                    st.subheader(f"{emoji} {titulo}")
-                    # Filtrado insensible a mayúsculas/tildes
-                    mask = df["Categoría"].str.contains(filtro, case=False, na=False)
-                    df_final = df[mask].copy()
+                    # Función de renderizado para evitar repeticiones
+                    def render_seccion(titulo, filtro, emoji, clave):
+                        st.subheader(f"{emoji} {titulo}")
+                        mask = df["Categoría"].str.contains(filtro, case=False, na=False)
+                        df_sub = df[mask].copy()
+                        
+                        if not df_sub.empty:
+                            # APLICAR NEGRITA VISUAL REAL
+                            styled = df_sub.style.map(lambda x: 'font-weight: bold;', subset=['Original'])
+                            st.dataframe(styled, use_container_width=True, hide_index=True, key=f"t_{clave}")
+                        else:
+                            st.write("✅ Todo correcto.")
+
+                    render_seccion("ERRORES ORTOGRÁFICOS", "ORTOGRAFIA|ORTOGRAFÍA", "🔴", "o")
+                    render_seccion("ERRORES DE FORMATO", "FORMATO", "🟡", "f")
+                    render_seccion("SUGERENCIAS Y ESTILO", "SUGERENCIA", "🟢", "s")
                     
-                    if not df_final.empty:
-                        # Aplicar negrita visual a la columna Original
-                        df_estilizado = df_final.style.map(lambda x: 'font-weight: bold;', subset=['Original'])
-                        st.dataframe(df_estilizado, use_container_width=True, hide_index=True, key=f"tabla_{id_tabla}")
-                    else:
-                        st.write(f"✅ Sin incidencias en {titulo.lower()}.")
-
-                # Dibujamos las 3 secciones
-                renderizar_tabla("ERRORES ORTOGRÁFICOS", "ORTOGRAFIA|ORTOGRAFÍA", "🔴", "orto")
-                renderizar_tabla("ERRORES DE FORMATO", "FORMATO", "🟡", "form")
-                renderizar_tabla("SUGERENCIAS Y ESTILO", "SUGERENCIA", "🟢", "sug")
-                
-                st.divider()
-                
-                # Botón de descarga único
-                with open(ruta_txt, "rb") as f:
-                    st.download_button(
-                        label="📥 Descargar Informe Completo (TXT)",
-                        data=f,
-                        file_name=st.session_state['informe_actual'],
-                        mime="text/plain",
-                        key="download_final_btn"
-                    )
-            else:
-                st.info("El análisis no ha devuelto errores todavía...")
+                    st.divider()
+                    with open(ruta_txt, "rb") as f:
+                        st.download_button("📥 Descargar TXT", f, file_name=st.session_state['informe_actual'], key="dl")
+                else:
+                    st.info("Generando informe... por favor, espera unos segundos.")
+                    time.sleep(2)
+                    st.rerun()
+            except:
+                st.warning("Leyendo datos...")
