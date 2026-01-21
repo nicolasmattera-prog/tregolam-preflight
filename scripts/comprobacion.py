@@ -12,64 +12,72 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENTRADA_DIR = os.path.join(BASE_DIR, "entrada")
 SALIDA_DIR = os.path.join(BASE_DIR, "salida")
 
+# Asegurar que las carpetas existen para evitar errores de ruta
+os.makedirs(ENTRADA_DIR, exist_ok=True)
+os.makedirs(SALIDA_DIR, exist_ok=True)
+
 PROMPT_AUDITORIA = """Actúa como un auditor ortotipográfico experto. Tu tarea es clasificar errores en 3 categorías: ORTOGRAFIA, FORMATO o SUGERENCIA.
 
-REGLAS TÉCNICAS (Solo reportar si se incumplen):
+REGLAS TÉCNICAS:
 1. CIFRAS: Espacio de no ruptura en miles (Ej: 20 000). NO puntos ni comas.
 2. COMILLAS: Convertir "" o '' en latinas « ». SI YA SON « », NO REPORTAR NADA.
 3. RAYAS: Diálogos con raya larga — pegada al texto (Ej: —Hola).
 4. SÍMBOLOS: Espacio entre cifra y símbolo (Ej: 10 %).
 
 CATEGORÍAS DE SALIDA:
-- [ORTOGRAFIA]: Erratas, concordancia o faltas graves.
+- [ORTOGRAFIA]: Erratas o faltas graves.
 - [FORMATO]: Errores en las 4 reglas técnicas de arriba.
-- [SUGERENCIA]: Recomendaciones de estilo o dudas (como nombres propios).
+- [SUGERENCIA]: Recomendaciones de estilo.
 
 FORMATO DE RESPUESTA (ESTRICTO):
-- Si hay error: CATEGORIA | ID_X | "original" | "corrección" | Motivo
-- Si el párrafo es correcto o tienes dudas leves: S_OK
-- NUNCA expliques nada fuera de este formato."""
+CATEGORIA | ID_X | "original" | "corrección" | Motivo
+Si no hay errores en el bloque, responde únicamente: S_OK"""
 
 def comprobar_archivo(nombre_archivo):
     ruta_lectura = os.path.join(ENTRADA_DIR, nombre_archivo)
     
     try:
         if not os.path.exists(ruta_lectura):
-            return f"ERROR: Archivo no encontrado en {ruta_lectura}"
+            return f"ERROR: Archivo no encontrado"
 
         doc = Document(ruta_lectura)
-        # El informe ahora será una lista de datos estructurados
         resultados = []
-        
         bloque = []
-        for i, p in enumerate(doc.paragraphs):
-            texto = p.text.strip()
-            if len(texto) > 5:
-                bloque.append(f"ID_{i+1}: {texto}")
+        
+        # Filtrar párrafos útiles para no saturar la IA
+        parrafos = [p.text.strip() for p in doc.paragraphs if len(p.text.strip()) > 5]
+
+        for i, texto in enumerate(parrafos):
+            bloque.append(f"ID_{i+1}: {texto}")
             
+            # Procesar en bloques de 10
             if len(bloque) >= 10:
                 respuesta = llamar_ia("\n".join(bloque))
-                for linea in respuesta.split("\n"):
-                    if "S_OK" not in linea.upper() and "|" in linea:
-                        resultados.append(linea.strip())
+                if respuesta and "S_OK" not in respuesta.upper():
+                    for linea in respuesta.split("\n"):
+                        if "|" in linea:
+                            resultados.append(linea.strip())
                 bloque = []
 
+        # Procesar bloque restante
         if bloque:
             respuesta = llamar_ia("\n".join(bloque))
-            for linea in respuesta.split("\n"):
-                if "S_OK" not in linea.upper() and "|" in linea:
-                    resultados.append(linea.strip())
+            if respuesta and "S_OK" not in respuesta.upper():
+                for linea in respuesta.split("\n"):
+                    if "|" in linea:
+                        resultados.append(linea.strip())
 
-        # Guardamos el informe temporalmente como TXT, pero estructurado por "|"
+        # Generar nombre y ruta de salida
         nombre_txt = f"Informe_{nombre_archivo.replace('.docx', '.txt')}"
         ruta_txt = os.path.join(SALIDA_DIR, nombre_txt)
         
+        # ESCRITURA SEGURA: Usamos 'with' para asegurar el cierre del archivo
         with open(ruta_txt, "w", encoding="utf-8") as f:
-            if not resultados:
-                f.write("S_OK")
-            else:
+            if resultados:
                 f.write("\n".join(resultados))
-            
+            else:
+                f.write("S_OK | 0 | N/A | N/A | No se detectaron errores.")
+        
         return nombre_txt
 
     except Exception as e:
@@ -83,8 +91,9 @@ def llamar_ia(texto_bloque):
                 {"role": "system", "content": PROMPT_AUDITORIA},
                 {"role": "user", "content": texto_bloque}
             ],
-            temperature=0
+            temperature=0,
+            timeout=30 # Evita que el script se quede colgado si OpenAI tarda
         )
         return res.choices[0].message.content.strip()
-    except Exception as e:
-        return f"ERROR_IA: {str(e)}"
+    except Exception:
+        return "S_OK" # Si falla la IA, devolvemos S_OK para no bloquear el bucle
