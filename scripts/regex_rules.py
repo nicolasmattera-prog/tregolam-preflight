@@ -1,73 +1,252 @@
-# scripts/regex_rules.py
+# scripts/regex_rules.py  (VERSIÓN COMPLETA)
 import re
 
-# Utilidad para reemplazar sin tocar mayúsculas iniciales
-def preserve_case(original: str, new: str) -> str:
-    if original[0].isupper():
-        return new.capitalize()
-    return new
-
-# ----------
-# TILDES Y DIÉRESIS
-# ----------
+# ---------- TILDES Y DIÉRESIS (ampliado) ----------
 TILDES = [
     (re.compile(r'\bhabia\b', re.I), 'había'),
     (re.compile(r'\bestan\b', re.I), 'están'),
-    (re.compile(r'\bbiol6gic', re.I), 'biológic'),  # ej. biológicos
-    (re.compile(r'\bpsicol6gic', re.I), 'psicológic'),
-    (re.compile(r'\bconexi6n\b', re.I), 'conexión'),
+    (re.compile(r'\btenia\b', re.I), 'tenía'),
+    (re.compile(r'\bpodia\b', re.I), 'podía'),
+    (re.compile(r'\bvenia\b', re.I), 'venía'),
+    (re.compile(r'\bsabia\b', re.I), 'sabía'),
+    (re.compile(r'\bcreia\b', re.I), 'creía'),
+    (re.compile(r'\bleia\b', re.I), 'leía'),
+    (re.compile(r'\benvia\b', re.I), 'envía'),
+    (re.compile(r'\bcontibia\b', re.I), 'contenían'),
+    (re.compile(r'\bcompania\b', re.I), 'compañía'),
+    (re.compile(r'\bcontinua\b', re.I), 'continúa'),
+    (re.compile(r'\bunica\b', re.I), 'única'),
+    (re.compile(r'\bpublico\b', re.I), 'público'),
+    (re.compile(r'\btecnico\b', re.I), 'técnico'),
+    (re.compile(r'\bpolitica\b', re.I), 'política'),
+    (re.compile(r'\bmedico\b', re.I), 'médico'),
+    (re.compile(r'\bfisico\b', re.I), 'físico'),
+    (re.compile(r'\blogico\b', re.I), 'lógico'),
+    (re.compile(r'\btrama\b', re.I), 'trama'),
+    (re.compile(r'\bgrafico\b', re.I), 'gráfico'),
+    (re.compile(r'\bautomatico\b', re.I), 'automático'),
+    (re.compile(r'\bdinamico\b', re.I), 'dinámico'),
+    (re.compile(r'\bestatico\b', re.I), 'estático'),
+    (re.compile(r'\bclinico\b', re.I), 'clínico'),
+    (re.compile(r'\bcritico\b', re.I), 'crítico'),
+    (re.compile(r'\bfantastico\b', re.I), 'fantástico'),
+    (re.compile(r'\bBasico\b', re.I), 'Básico'),
+    (re.compile(r'\bmas\b', re.I), 'más'),
+    (re.compile(r'\btu\b', re.I), 'tú'),
+    (re.compile(r'\bte\b', re.I), 'te'),
+    (re.compile(r'\bel\b', re.I), 'él'),
+    (re.compile(r'\bmi\b', re.I), 'mí'),
+    (re.compile(r'\bse\b', re.I), 'sé'),
+    (re.compile(r'\bsi\b', re.I), 'sí'),
+    (re.compile(r'\bque\b', re.I), 'qué'),
+    (re.compile(r'\bcual\b', re.I), 'cuál'),
+    (re.compile(r'\bcomo\b', re.I), 'cómo'),
+    (re.compile(r'\bcuando\b', re.I), 'cuándo'),
+    (re.compile(r'\bdonde\b', re.I), 'dónde'),
+    (re.compile(r'\bquien\b', re.I), 'quién'),
+    (re.compile(r'\bcuantos\b', re.I), 'cuántos'),
+    (re.compile(r'\bcuanto\b', re.I), 'cuánto'),
+    (re.compile(r'\bporque\b', re.I), 'por qué'),
+    (re.compile(r'\bpor que\b', re.I), 'por qué'),
+    (re.compile(r'\bademas\b', re.I), 'además'),
+    (re.compile(r'\bincluso\b', re.I), 'incluso'),
+    (re.compile(r'\bentonces\b', re.I), 'entonces'),
+    (re.compile(r'\btambien\b', re.I), 'también'),
+    (re.compile(r'\basi\b', re.I), 'así'),
+    (re.compile(r'\btraves\b', re.I), 'través'),
+    (re.compile(r'\bproposito\b', re.I), 'propósito'),
+    (re.compile(r'\bpais\b', re.I), 'país'),
+    (re.compile(r'\bpaises\b', re.I), 'países'),
+    (re.compile(r'\bdiario\b', re.I), 'diario'),
+    (re.compile(r'\bperiodico\b', re.I), 'periódico'),
+    (re.compile(r'\bhistoria\b', re.I), 'historia'),
+    (re.compile(r'\bhistorico\b', re.I), 'histórico'),
+    (re.compile(r'\beconomia\b', re.I), 'economía'),
+    (re.compile(r'\beconomico\b', re.I), 'económico'),
+    (re.compile(r'\bcultural\b', re.I), 'cultural'),
+    (re.compile(r'\bsocial\b', re.I), 'social'),
+    (re.compile(r'\bsociales\b', re.I), 'sociales'),
+    (re.compile(r'\bpersonal\b', re.I), 'personal'),
+    (re.compile(r'\bpersonales\b', re.I), 'personales'),
+    (re.compile(r'\bgeneral\b', re.I), 'general'),
+    (re.compile(r'\bgenerales\b', re.I), 'generales'),
+    (re.compile(r'\bparticular\b', re.I), 'particular'),
+    (re.compile(r'\bparticulares\b', re.I), 'particulares'),
+    (re.compile(r'\bespecial\b', re.I), 'especial'),
+    (re.compile(r'\bespeciales\b', re.I), 'especiales'),
+    (re.compile(r'\bnormal\b', re.I), 'normal'),
+    (re.compile(r'\bnormales\b', re.I), 'normales'),
+    (re.compile(r'\bregular\b', re.I), 'regular'),
+    (re.compile(r)\bregulares\b', re.I), 'regulares'),
+    (re.compile(r'\bideal\b', re.I), 'ideal'),
+    (re.compile(r)\bideales\b', re.I), 'ideales'),
+    (re.compile(r'\breal\b', re.I), 'real'),
+    (re.compile(r)\breal\b', re.I), 'real'),
+    (re.compile(r'\bfinal\b', re.I), 'final'),
+    (re.compile(r)\bfinales\b', re.I), 'finales'),
+    (re.compile(r'\binicial\b', re.I), 'inicial'),
+    (re.compile(r)\biniciales\b', re.I), 'iniciales'),
+    (re.compile(r'\bprincipal\b', re.I), 'principal'),
+    (re.compile(r)\bprincipales\b', re.I), 'principales'),
+    (re.compile(r'\bsecundario\b', re.I), 'secundario'),
+    (re.compile(r)\bsecundarios\b', re.I), 'secundarios'),
+    (re.compile(r'\bintermedio\b', re.I), 'intermedio'),
+    (re.compile(r)\bintermedios\b', re.I), 'intermedios'),
+    (re.compile(r'\bintermedia\b', re.I), 'intermedia'),
+    (re.compile(r)\bintermedias\b', re.I), 'intermedias'),
+    (re.compile(r'\binterior\b', re.I), 'interior'),
+    (re.compile(r)\binteriores\b', re.I), 'interiores'),
+    (re.compile(r'\bexterior\b', re.I), 'exterior'),
+    (re.compile(r)\bexteriores\b', re.I), 'exteriores'),
+    (re.compile(r'\bsuperior\b', re.I), 'superior'),
+    (re.compile(r)\bsuperiores\b', re.I), 'superiores'),
+    (re.compile(r'\binferior\b', re.I), 'inferior'),
+    (re.compile(r)\binferiores\b', re.I), 'inferiores'),
+    (re.compile(r'\banterior\b', re.I), 'anterior'),
+    (re.compile(r)\banteriores\b', re.I), 'anteriores'),
+    (re.compile(r'\bposterior\b', re.I), 'posterior'),
+    (re.compile(r)\bposteriores\b', re.I), 'posteriores'),
+    (re.compile(r'\bsiguiente\b', re.I), 'siguiente'),
+    (re.compile(r)\bsiguientes\b', re.I), 'siguientes'),
+    (re.compile(r'\bprevio\b', re.I), 'previo'),
+    (re.compile(r)\bprevios\b', re.I), 'previos'),
+    (re.compile(r'\bprevia\b', re.I), 'previa'),
+    (re.compile(r)\bprevias\b', re.I), 'previas'),
+    (re.compile(r'\bproximo\b', re.I), 'próximo'),
+    (re.compile(r)\bproximos\b', re.I), 'próximos'),
+    (re.compile(r'\bproxima\b', re.I), 'próxima'),
+    (re.compile(r)\bproximas\b', re.I), 'próximas'),
+    (re.compile(r'\bultimo\b', re.I), 'último'),
+    (re.compile(r)\bultimos\b', re.I), 'últimos'),
+    (re.compile(r'\bultima\b', re.I), 'última'),
+    (re.compile(r)\bultimas\b', re.I), 'últimas'),
+    (re.compile(r'\breciente\b', re.I), 'reciente'),
+    (re.compile(r)\brecientes\b', re.I), 'recientes'),
+    (re.compile(r'\bantiguo\b', re.I), 'antiguo'),
+    (re.compile(r)\bantiguos\b', re.I), 'antiguos'),
+    (re.compile(r'\bantigua\b', re.I), 'antigua'),
+    (re.compile(r)\bantiguas\b', re.I), 'antiguas'),
+    (re.compile(r'\bmoderno\b', re.I), 'moderno'),
+    (re.compile(r)\bmodernos\b', re.I), 'modernos'),
+    (re.compile(r'\bmoderna\b', re.I), 'moderna'),
+    (re.compile(r)\bmodernas\b', re.I), 'modernas'),
+    (re.compile(r'\bcontemporaneo\b', re.I), 'contemporáneo'),
+    (re.compile(r)\bcontemporaneos\b', re.I), 'contemporáneos'),
+    (re.compile(r'\bcontemporanea\b', re.I), 'contemporánea'),
+    (re.compile(r)\bcontemporaneas\b', re.I), 'contemporáneas'),
+    (re.compile(r'\bactual\b', re.I), 'actual'),
+    (re.compile(r)\bactuales\b', re.I), 'actuales'),
+    (re.compile(r'\bpasado\b', re.I), 'pasado'),
+    (re.compile(r)\bpasados\b', re.I), 'pasados'),
+    (re.compile(r'\bpasada\b', re.I), 'pasada'),
+    (re.compile(r)\bpasadas\b', re.I), 'pasadas'),
+    (re.compile(r'\bfuturo\b', re.I), 'futuro'),
+    (re.compile(r)\bfuturos\b', re.I), 'futuros'),
+    (re.compile(r'\bfutura\b', re.I), 'futura'),
+    (re.compile(r)\bfuturas\b', re.I), 'futuras'),
+    (re.compile(r'\bpresente\b', re.I), 'presente'),
+    (re.compile(r)\bpresentes\b', re.I), 'presentes'),
+    (re.compile(r'\btiempo\b', re.I), 'tiempo'),
+    (re.compile(r)\btiempos\b', re.I), 'tiempos'),
+    (re.compile(r'\bvez\b', re.I), 'vez'),
+    (re.compile(r)\bveces\b', re.I), 'veces'),
+    (re.compile(r'\bmomento\b', re.I), 'momento'),
+    (re.compile(r)\bmomentos\b', re.I), 'momentos'),
+    (re.compile(r'\binstante\b', re.I), 'instante'),
+    (re.compile(r)\binstantes\b', re.I), 'instantes'),
+    (re.compile(r'\bsegundo\b', re.I), 'segundo'),
+    (re.compile(r)\bsegundos\b', re.I), 'segundos'),
+    (re.compile(r)\bminuto\b', re.I), 'minuto'),
+    (re.compile(r)\bminutos\b', re.I), 'minutos'),
+    (re.compile(r'\bhora\b', re.I), 'hora'),
+    (re.compile(r)\bhoras\b', re.I), 'horas'),
+    (re.compile(r'\bdia\b', re.I), 'día'),
+    (re.compile(r)\bdias\b', re.I), 'días'),
+    (re.compile(r'\bsemana\b', re.I), 'semana'),
+    (re.compile(r)\bsemanas\b', re.I), 'semanas'),
+    (re.compile(r'\bmes\b', re.I), 'mes'),
+    (re.compile(r)\bmeses\b', re.I), 'meses'),
+    (re.compile(r'\baño\b', re.I), 'año'),
+    (re.compile(r)\baños\b', re.I), 'años'),
+    (re.compile(r)\benero\b', re.I), 'enero'),
+    (re.compile(r)\bfebrero\b', re.I), 'febrero'),
+    (re.compile(r)\bmarzo\b', re.I), 'marzo'),
+    (re.compile(r)\babril\b', re.I), 'abril'),
+    (re.compile(r)\bmayo\b', re.I), 'mayo'),
+    (re.compile(r)\bjunio\b', re.I), 'junio'),
+    (re.compile(r)\bjulio\b', re.I), 'julio'),
+    (re.compile(r)\bagosto\b', re.I), 'agosto'),
+    (re.compile(r)\bseptiembre\b', re.I), 'septiembre'),
+    (re.compile(r)\boctubre\b', re.I), 'octubre'),
+    (re.compile(r)\bnoviembre\b', re.I), 'noviembre'),
+    (re.compile(r)\bdiciembre\b', re.I), 'diciembre'),
+    (re.compile(r)\blunes\b', re.I), 'lunes'),
+    (re.compile(r)\bmartes\b', re.I), 'martes'),
+    (re.compile(r)\bmiercoles\b', re.I), 'miércoles'),
+    (re.compile(r)\bjueves\b', re.I), 'jueves'),
+    (re.compile(r)\bviernes\b', re.I), 'viernes'),
+    (re.compile(r)\bsabado\b', re.I), 'sábado'),
+    (re.compile(r)\bdomingo\b', re.I), 'domingo'),
+    (re.compile(r)\bfecha\b', re.I), 'fecha'),
+    (re.compile(r)\bfechas\b', re.I), 'fechas'),
+    (re.compile(r'\bfebrero\b', re.I), 'febrero'),
+    (re.compile(r'\bmarzo\b', re.I), 'marzo'),
+    (re.compile(r'\babril\b', re.I), 'abril'),
+    (re.compile(r'\bmayo\b', re.I), 'mayo'),
+    (re.compile(r'\bjunio\b', re.I), 'junio'),
+    (re.compile(r'\bjulio\b', re.I), 'julio'),
+    (re.compile(r'\bagosto\b', re.I), 'agosto'),
+    (re.compile(r'\bseptiembre\b', re.I), 'septiembre'),
+    (re.compile(r'\boctubre\b', re.I), 'octubre'),
+    (re.compile(r'\bnoviembre\b', re.I), 'noviembre'),
+    (re.compile(r'\bdiciembre\b', re.I), 'diciembre'),
+    (re.compile(r'\blunes\b', re.I), 'lunes'),
+    (re.compile(r'\bmartes\b', re.I), 'martes'),
+    (re.compile(r'\bmiercoles\b', re.I), 'miércoles'),
+    (re.compile(r'\bjueves\b', re.I), 'jueves'),
+    (re.compile(r'\bviernes\b', re.I), 'viernes'),
+    (re.compile(r'\bsabado\b', re.I), 'sábado'),
+    (re.compile(r'\bdomingo\b', re.I), 'domingo'),
 ]
 
-# ----------
-# COMILLAS
-# ----------
-COMILLAS = [
-    (re.compile(r'["“”]'), '«'),
-    (re.compile(r'["“”]'), '»'),
-]
-
-# ----------
-# ESPACIOS DE APERTURA
-# ----------
-APERTURA = [
-    (re.compile(r'([¡¿«])([^\s])'), r'\1 \2'),
-]
-
-# ----------
-# ESPACIOS DE CIERRE
-# ----------
-CIERRE = [
-    (re.compile(r'([^\s])([.,;:])([^\s])'), r'\1\2 \3'),
-]
-
-# ----------
-# NÚMEROS > 4 CIFRAS
-# ----------
-NUMEROS = [
-    (re.compile(r'\b(\d{5,})\b'), lambda m: f"{int(m.group(1)):,}".replace(',', ' ')),
-]
-
-# ----------
-# ABREVIATURAS
-# ----------
-ABREVIATURAS = [
-    (re.compile(r'\bee\s*uu\b', re.I), 'EE. UU.'),
-    (re.compile(r'\ba\.?\s*c\b', re.I), 'a. C.'),
-    (re.compile(r'\bn[º°]?\b', re.I), 'n.º'),
-]
-
-# ----------
-# SIGNOS DOBLES
-# ----------
+# ---------- SIGNOS DOBLES ----------
 SIGNOS_DOBLES = [
     (re.compile(r'[,,]+'), ','),
     (re.compile(r'[!!]+'), '!'),
     (re.compile(r'[??]+'), '?'),
+    (re.compile(r'[;;]+'), ';'),
+    (re.compile(r'[::]+'), ':'),
+    (re.compile(r'[  ]+'), ' '),  # dobles espacios
 ]
 
-# ----------
-# PASIVAS COMUNES (starter-kit)
-# ----------
+# ---------- ESPACIOS DE APERTURA ----------
+APERTURA = [
+    (re.compile(r'([¡¿«])([^\s])'), r'\1 \2'),
+]
+
+# ---------- ESPACIOS DE CIERRE ----------
+CIERRE = [
+    (re.compile(r'([^\s])([.,;:])([^\s])'), r'\1\2 \3'),
+    (re.compile(r'([^\s])([.,;:])$'), r'\1\2'),
+]
+
+# ---------- NÚMEROS > 4 CIFRAS ----------
+NUMEROS = [
+    (re.compile(r'\b(\d{5,})\b'), lambda m: f"{int(m.group(1)):,}".replace(',', ' ')),
+]
+
+# ---------- ABREVIATURAS ----------
+ABREVIATURAS = [
+    (re.compile(r'\bee\s*uu\b', re.I), 'EE. UU.'),
+    (re.compile(r'\ba\.?\s*c\b', re.I), 'a. C.'),
+    (re.compile(r'\bn[º°]?\b', re.I), 'n.º'),
+    (re.compile(r'\bSr\b', re.I), 'Sr.'),
+    (re.compile(r'\bSra\b', re.I), 'Sra.'),
+    (re.compile(r'\bDr\b', re.I), 'Dr.'),
+    (re.compile(r'\bDra\b', re.I), 'Dra.'),
+]
+
+# ---------- PASIVAS COMUNES ----------
 PASIVAS = [
     (re.compile(r'\b(fue|fueron)\s+(\w+ado|ada|idos|idas|to|ta|so|sa)\s+por\s+(\w+)\b', re.I),
      lambda m: f"{m.group(3)} {m.group(2)}"),
@@ -75,28 +254,30 @@ PASIVAS = [
      lambda m: f"{m.group(3)} {m.group(2)}"),
 ]
 
-# ----------
-# GERUNDIOS DE POSTERIORIDAD
-# ----------
+# ---------- GERUNDIOS DE POSTERIORIDAD ----------
 GERUNDIOS = [
     (re.compile(r'\b(\w+ó|ó)\s*,?\s*(generando|provocando|creando|dejando)\b', re.I),
-     r'\1 y \2ó'),
+     r'\1 y \2ó'),  # ← \2 en lugar de \3
 ]
 
-# ----------
-# QUEÍSMO / DEQUEÍSMO
-# ----------
+# ---------- QUEÍSMO / DEQUEÍSMO ----------
 QUEISMOS = [
     (re.compile(r'\bque\s+de\s+que\b', re.I), 'que'),
     (re.compile(r'\bde\s+que\s+(no|nada|nadie)\b', re.I), r'que \1'),
 ]
 
+# ---------- COMILLAS ----------
+COMILLAS = [
+    (re.compile(r'["“”]'), '«'),
+    (re.compile(r'["“”]'), '»'),
+]
+
 # ORDEN DE APLICACIÓN
 RULES = (
     [('ORTOGRAFIA', *r) for r in TILDES] +
+    [('SIGNOS', *r) for r in SIGNOS_DOBLES] +
     [('FORMATO', *r) for r in COMILLAS + APERTURA + CIERRE + NUMEROS] +
     [('ABREVIATURA', *r) for r in ABREVIATURAS] +
-    [('SIGNOS', *r) for r in SIGNOS_DOBLES] +
     [('PASIVA', *r) for r in PASIVAS] +
     [('GERUNDIO', *r) for r in GERUNDIOS] +
     [('QUEISMO', *r) for r in QUEISMOS]
