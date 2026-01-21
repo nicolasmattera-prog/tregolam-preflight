@@ -28,12 +28,12 @@ def aplicar_cambios_quirurgicos(parrafo, original: str, corregido: str):
     if original == corregido:
         return
 
-    # Limpiar runs
     for run in parrafo.runs:
         run.text = ""
 
     run = parrafo.add_run(corregido)
     run.font.name = 'Garamond'
+    run.font.color.rgb = RGBColor(0, 0, 180)  # azul
 
 # ---------- FUNCIÓN PRINCIPAL ----------
 def ejecutar_precorreccion(name: str) -> str:
@@ -86,6 +86,7 @@ def ejecutar_precorreccion(name: str) -> str:
         return f"✅ Archivo '{name}' procesado y guardado en salida."
     except Exception as e:
         return f"ERROR en precorrección: {str(e)}"
+
 
 
 
