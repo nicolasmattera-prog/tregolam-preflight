@@ -6,12 +6,6 @@ from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI
 from dotenv import load_dotenv
 
-# Intentar importar el monitor de tokens
-try:
-    from token_monitor import log_tokens
-except ImportError:
-    def log_tokens(model, usage, tag): pass
-
 # ---------- CONFIGURACIÓN ----------
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -23,198 +17,151 @@ INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# ---------- PROMPTS ULTRA-ESTRICTOS (MODO MOTOR) ----------
+# ---------- RESTAURACIÓN DE TUS PROMPTS ULTRA-ESTRICTOS ----------
 PROMPT_F1 = """
 Eres un CORRECTOR ORTOGRÁFICO Y TIPOGRÁFICO de texto ya existente.  
-Tu única tarea es aplicar, SIN EXCEPCIONES, las reglas que se listan a continuación. Nada de lo que no se mencione está permitido.
+Tu única tarea es aplicar, SIN EXCEPCIONES, las reglas que se listan a continuación:
 
-1. Números: 4 cifras seguidas (4000). 5 o más cifras: espacio cada 3 (20 000). Años: juntos (2026). Porcentajes: espacio antes del % (20 %).
-2. Unidades y símbolos: Espacio entre cantidad y símbolo (12 kg, 45 °C, 60 %). Sin plural en símbolos (kg, %, cm).
-3. Abreviaturas: EE. UU., a. C., n.º, D.ª, Sr.
-4. Diálogos y citas: Raya de apertura (—) pegada al texto. Raya de inciso pegada al texto (—dijo Rubén). Puntuación siempre después de la raya de cierre: —dijo—. / «eso».
-5. Comillas: Sustituye CUALQUIER tipo de comilla doble (ya sean rectas " ", curvas de apertura “ o curvas de cierre ”) por comillas latinas « » siempre.
-7. Mayúsculas: Corrige capitalización sin tocar siglas ni acrónimos.
-8. Ortografía y gramática básica: Tildes, diéresis, v/b, haches y concordancia simple (género/número).
-9. Signos de puntuación: Quita repeticiones (,, !!, ??).
-10. VOCATIVO: Coma obligatoria para separar el vocativo (ej: «Marta, cierra la puerta», «Hoy, amigos, celebramos»).
+1. Diálogos: Raya de apertura (—) pegada al texto. Raya de inciso pegada al texto (—dijo Rubén). Puntuación siempre después de la raya de cierre: —dijo—.
+   Ejemplo correcto: —Texto del diálogo— dijo X—. Texto del diálogo.
+2. Mayúsculas: Corrige capitalización sin tocar siglas ni acrónimos.
+3. Ortografía: Tildes, diéresis, v/b, haches y concordancia simple.
+4. Signos: Quita repeticiones (,, !!, ??).
+5. VOCATIVO: Coma obligatoria (ej: «Marta, cierra la puerta»).
+6. ESPACIOS APERTURA: UN espacio entre la palabra anterior y el signo de apertura (¿, ¡, «).
+7. PEGOTES: UN espacio después de punto, coma, etc. Separa «autenticidad.Los» -> «autenticidad. Los».
+8. GRAMÁTICA: Corrige "si + habría" por "si + hubiera/hubiese".
 
-11. REGLA DE ESPACIOS DE APERTURA (OBLIGATORIA): 
-    - Siempre debe haber UN espacio entre la palabra anterior y el signo de apertura.
-    - Ejemplo correcto: «palabra ¿», «palabra ¡», «palabra «».
-    - NUNCA pegues el signo de apertura a la palabra que le precede.
-
-12. REGLA DE ESPACIOS DE CIERRE y PEGOTES:
-    - Siempre debe haber UN espacio después de punto, coma, punto y coma y dos puntos.
-    - Si dos frases están pegadas por un punto (ej: «autenticidad.Los»), separa OBLIGATORIAMENTE con un espacio: «autenticidad. Los».
-    - Nunca pegues una palabra inmediatamente después de un signo de puntuación de cierre.
-13. GRAMÁTICA: Corrige el uso de "si + habría" por "si + hubiera/hubiese"
-
-RESTRICCIONES ABSOLUTAS:
-- No cambies ni una palabra que esté bien escrita.
-- No añadas, suprimas ni reordenes frases.
-- No introduzcas comentarios, explicaciones ni ejemplos.
-- No uses asteriscos ni otros marcadores.
-- No generes párrafos nuevos ni líneas en blanco extra.
-- No corrijas estilo, solo errores ortográficos/tipográficos.
+RESTRICCIONES: No cambies palabras correctas, no añadas frases, no pongas comentarios.
 """
 
-# ---------- FASE 2: EDITOR DE ESTILO (AÑADIDO POSTERIOR) ----------
-PROMPT_F2 = """Eres editor literario. Tu única función es mejorar la agilidad verbal:
+PROMPT_F2 = """Eres editor literario. Mejora la agilidad verbal:
 1. GERUNDIOS DE POSTERIORIDAD: 'terminó, generando' -> 'terminó y generó'.
-2. VOZ PASIVA: Cámbiala a activa REORDENANDO la frase (Ejemplo: 'Los datos fueron analizados por el equipo' -> 'El equipo analizó los datos').
-3. ESTRUCTURAS PESADAS: Mejora el flujo natural de la frase y tiempos verbales (ej: 'no venía' -> 'no habría venido').
-4. LIMPIEZA LINGÜÍSTICA: Corrige queísmo/dequeísmo y concordancia de colectivos (ej: 'la mayoría decidió' en lugar de 'decidieron').
+2. VOZ PASIVA: Cámbiala a activa REORDENANDO la frase.
+3. ESTRUCTURAS PESADAS: Mejora el flujo natural (ej: 'no venía' -> 'no habría venido').
+4. LIMPIEZA LINGÜÍSTICA: Corrige queísmo/dequeísmo y concordancia de colectivos.
 
-REGLA DE ORO: Respeta escrupulosamente los espacios en cifras (20 000, 36,6 °C), símbolos y comillas « » de la fase anterior."""
+REGLA DE ORO: Respeta escrupulosamente los espacios en cifras y comillas de la fase anterior."""
 
-# ---------- FUNCIONES DE LIMPIEZA Y SEGURIDAD ----------
+# ---------- FUNCIONES TÉCNICAS (CON TOKENIZER DE ESPACIOS) ----------
+
+def _tokenize(txt):
+    """Devuelve lista de tuplas (palabra, espacios_posteriores)."""
+    return re.findall(r'(\S+)([ \t\u00A0\r\n]*)', txt, re.UNICODE)
+
 def limpieza_residuos_chat(texto):
-    """Elimina cualquier intento de la IA de hablar o explicar lo que hizo."""
-    patrones_basura = [
-        r"^claro, aquí tienes.*?:", 
-        r"^aquí está el texto.*?:",
-        r"^he corregido.*?:",
-        r"^revisión de estilo.*?:",
-        r"¡dímelo!$",
-        r"espero que te sirva.*$",
-        r"^según tu solicitud.*?:",
-        r"^frases de prueba.*?:",
-    ]
+    patrones_basura = [r"^claro, aquí tienes.*?:", r"^aquí está el texto.*?:", r"^he corregido.*?:", r"espero que te sirva.*$"]
     for patron in patrones_basura:
         texto = re.sub(patron, "", texto, flags=re.IGNORECASE | re.MULTILINE)
     return texto.strip().strip('"')
 
-def necesita_fase_2(texto):
-    """Detecta si el párrafo tiene potencial para contener vicios de estilo."""
-    t = texto.lower()
-    # Gatillos: gerundios y formas de pasiva
-    gatillos = [r"ando\b", r"endo\b", r"\bfue\b", r"\bfueron\b", r"\bser\b", r"\bsido\b", r"\bestar\b"]
-    if any(re.search(p, t) for p in gatillos): return True
-    if len(t.split()) > 15: return True
-    return False
-
-def es_alucinacion(res):
-    blacklist = ["frase está correcta", "no hay cambios", "no necesita", "sin comentarios"]
-    return any(f in res.lower() for f in blacklist)
-
 def eliminar_inserciones_largas(original, corregido, max_palabras=3):
-    orig = original.split()
-    corr = corregido.split()
-
-    s = difflib.SequenceMatcher(None, orig, corr)
-    resultado = []
-
-    for tag, i1, i2, j1, j2 in s.get_opcodes():
-        if tag == 'insert':
-            bloque = corr[j1:j2]
-            if len(bloque) <= max_palabras:
-                resultado.extend(bloque)
-            # si supera el límite → se elimina
-        else:
-            resultado.extend(corr[j1:j2])
-
-    return " ".join(resultado)
-
-
-# ---------- NÚCLEO DE PROCESAMIENTO ----------
-def corregir_bloque(texto):
-    if len(texto.strip()) < 3: return texto
+    """Bloquea alucinaciones sin romper la tipografía."""
+    orig_tok = _tokenize(original)
+    corr_tok = _tokenize(corregido)
     
+    s = difflib.SequenceMatcher(None, [w for w, _ in orig_tok], [w for w, _ in corr_tok])
+    out = []
+    for tag, i1, i2, j1, j2 in s.get_opcodes():
+        if tag == 'insert' and (j2 - j1) > max_palabras:
+            continue # Bloqueamos inserción de más de X palabras (alucinación)
+        
+        if tag == 'replace' and (j2 - j1) > (i2 - i1) + max_palabras:
+            # Si el reemplazo es sospechosamente largo, volvemos al original
+            for i in range(i1, i2):
+                pal, esp = orig_tok[i]
+                out.append(pal + esp)
+            continue
+
+        for j in range(j1, j2):
+            pal, esp = corr_tok[j]
+            out.append(pal + esp)
+            
+    return ''.join(out)
+
+# ---------- PROCESAMIENTO ----------
+
+def corregir_bloque(texto):
+    if not texto.strip(): return texto
     try:
-        # FASE 1: Ortografía (Mini)
+        # FASE 1: Tu corrección ortotipográfica estricta
         res1 = client.chat.completions.create(
             model=MODEL_MINI,
             messages=[{"role": "system", "content": PROMPT_F1}, {"role": "user", "content": texto}],
             temperature=0
         )
-        log_tokens(MODEL_MINI, res1.usage, "F1_Orto")
         r = limpieza_residuos_chat(res1.choices[0].message.content.strip())
+        r = eliminar_inserciones_largas(texto, r, max_palabras=3)
 
-        # CONTROL DE INTEGRIDAD (Si el Mini borra mucho, saltamos al Full)
-        if es_alucinacion(r) or len(r) < len(texto) * 0.98:
-            res_full = client.chat.completions.create(
-                model=MODEL_FULL,
-                messages=[{"role": "system", "content": PROMPT_F1}, {"role": "user", "content": texto}],
-                temperature=0
-            )
-            log_tokens(MODEL_FULL, res_full.usage, "FALLBACK_FULL")
-            r = limpieza_residuos_chat(res_full.choices[0].message.content.strip())
-
-        # FASE 2: Estilo Agresivo
-        if necesita_fase_2(r):
+        # FASE 2: Estilo
+        t_lower = r.lower()
+        if any(re.search(p, t_lower) for p in [r"ando\b", r"endo\b", r"\bfue\b", r"\bfueron\b"]) or len(r.split()) > 15:
             res2 = client.chat.completions.create(
                 model=MODEL_MINI,
                 messages=[{"role": "system", "content": PROMPT_F2}, {"role": "user", "content": r}],
                 temperature=0 
             )
-            log_tokens(MODEL_MINI, res2.usage, "F2_Estilo_Agresivo")
             r2 = limpieza_residuos_chat(res2.choices[0].message.content.strip())
             
-            # Margen del 85% para permitir el ahorro de palabras de la voz activa
-            if not es_alucinacion(r2) and (len(r) * 0.85 <= len(r2) <= len(r) * 1.2):
-                r = r2
-
+            # Margen dinámico para cambios de estilo legítimos
+            margen = 5 if re.search(r'\b(fue|fueron|será|serán|es|son)\b.+\bpor\b', r, re.I) else 4
+            r2_filtrado = eliminar_inserciones_largas(r, r2, max_palabras=margen)
+            
+            if 0.75 <= len(r2_filtrado) / (len(r) + 1) <= 1.3:
+                r = r2_filtrado
         return r
     except Exception as e:
-        print(f"Error procesando bloque: {e}")
+        print(f"Error: {e}")
         return texto
 
+# ---------- WORD MAPPING ----------
+
 def aplicar_cambios_quirurgicos(parrafo, original, corregido):
-    if original == corregido:
-        return
-
+    if original.strip() == corregido.strip(): return
     era_cursiva = any(run.italic for run in parrafo.runs)
-    for run in parrafo.runs:
-        run.text = ""
+    for run in parrafo.runs: run.text = ""
 
-    s = difflib.SequenceMatcher(None, original.split(), corregido.split())
+    orig_words = [w for w, _ in _tokenize(original)]
+    corr_list = _tokenize(corregido)
+    corr_words = [w for w, e in corr_list]
 
+    s = difflib.SequenceMatcher(None, orig_words, corr_words)
+    
     for tag, i1, i2, j1, j2 in s.get_opcodes():
-        palabras = corregido.split()[j1:j2]
-        if not palabras:
-            continue
-
-        texto_segmento = " ".join(palabras) + " "
-        run = parrafo.add_run(texto_segmento)
+        segmento = "".join([w + e for w, e in corr_list[j1:j2]])
+        if not segmento: continue
+        
+        run = parrafo.add_run(segmento)
         run.font.name = 'Garamond'
         run.italic = era_cursiva
+        
+        if j2 == len(corr_list) and not segmento.endswith((' ', '\u00A0')):
+            run.text += ' '
 
-        if tag == 'replace':
-            run.font.color.rgb = RGBColor(0, 0, 180)      # azul → corrección
-        elif tag == 'insert':
-            run.font.color.rgb = RGBColor(180, 0, 0)      # rojo → añadido
-        else:
-            run.font.color.rgb = RGBColor(0, 0, 0)        # negro → igual
+        if tag == 'replace': run.font.color.rgb = RGBColor(0, 0, 180)
+        elif tag == 'insert': run.font.color.rgb = RGBColor(180, 0, 0)
+        else: run.font.color.rgb = RGBColor(0, 0, 0)
 
-# ---------- PROCESO PRINCIPAL ----------
 def procesar_archivo(name):
-    print(f"🚀 Iniciando Preflight Profesional: {name}")
+    print(f"🚀 Procesando con tus reglas originales: {name}")
     doc = Document(os.path.join(INPUT_FOLDER, name))
-    
-    # Recopilar todos los párrafos (incluyendo tablas)
-    objetivos = [p for p in doc.paragraphs]
+    objetivos = [p for p in doc.paragraphs if p.text.strip()]
     for t in doc.tables:
         for r in t.rows:
             for c in r.cells:
-                for p in c.paragraphs: objetivos.append(p)
+                for p in c.paragraphs:
+                    if p.text.strip(): objetivos.append(p)
 
     textos_orig = [p.text for p in objetivos]
-    
-    # Procesamiento paralelo para máxima velocidad real (8 hilos)
     with ThreadPoolExecutor(max_workers=8) as exe:
         resultados = list(exe.map(corregir_bloque, textos_orig))
 
-    # Aplicar resultados al documento
     for p, orig, corr in zip(objetivos, textos_orig, resultados):
         aplicar_cambios_quirurgicos(p, orig, corr)
 
     doc.save(os.path.join(OUTPUT_FOLDER, name))
-    print(f"✅ Preflight completado para {name}. Revisa la carpeta 'salida'.")
+    print(f"✅ Finalizado con éxito.")
 
 if __name__ == "__main__":
     archivos = [f for f in os.listdir(INPUT_FOLDER) if f.endswith(".docx")]
-    if not archivos:
-        print("❌ No se encontraron archivos .docx en la carpeta 'entrada'.")
-    else:
-        for a in archivos:
-            procesar_archivo(a)
+    for a in archivos: procesar_archivo(a)
