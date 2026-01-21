@@ -47,11 +47,21 @@ if uploaded_file:
     col1, col2 = st.columns(2)
 
     with col1:
-        # Botón 1 con Key único
         if st.button("✨ 1. Precorrección", key="btn_ejecutar_pre"):
             with st.spinner("Limpiando espacios y dobles párrafos..."):
-                precorreccion.ejecutar_precorreccion(uploaded_file.name)
-                st.success("Precorrección completada.")
+                msg = precorreccion.ejecutar_precorreccion(uploaded_file.name)
+                st.success(msg)
+
+                # Botón para bajarse el DOCX corregido
+                ruta_docx_corregido = os.path.join(salida_dir, uploaded_file.name)
+                if os.path.exists(ruta_docx_corregido):
+                    with open(ruta_docx_corregido, "rb") as f_out:
+                        st.download_button(
+                            label="📥 Descargar DOCX corregido",
+                            data=f_out,
+                            file_name=f"corregido_{uploaded_file.name}",
+                            key="btn_descarga_docx_corregido"
+                        )
 
     with col2:
         # Botón 2 con Key único e invocación a función correcta (Punto 2)
