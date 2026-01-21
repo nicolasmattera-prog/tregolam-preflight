@@ -37,21 +37,15 @@ if uploaded_file:
                 resultado = precorreccion.ejecutar_precorreccion(uploaded_file.name)
                 st.success(resultado)
 
-    # --- BOTÓN 2: COMPROBACIÓN (IA) ---
+   # --- BOTÓN 2: COMPROBACIÓN (IA) ---
     with col2:
         if st.button("🤖 2. Iniciar Auditoría IA"):
-            progreso_bar = st.progress(0)
-            status_text = st.empty()
+            # Marcamos que el proceso ha empezado
+            st.session_state['informe_actual'] = f"Informe_{uploaded_file.name.replace('.docx', '.txt')}"
             
-            with st.spinner("Analizando manuscrito... Esto puede tardar unos minutos."):
+            with st.spinner("Procesando manuscrito..."):
                 nombre_informe = comprobacion.comprobar_archivo(uploaded_file.name)
-                
-                if "ERROR" in nombre_informe:
-                    st.error(nombre_informe)
-                else:
-                    st.session_state['informe_actual'] = nombre_informe
-                    progreso_bar.progress(100)
-                    status_text.success("¡Auditoría finalizada con éxito!")
+                st.success("¡Análisis finalizado!")
 
     # --- RENDERIZADO DEL PANEL DE COLORES ---
     if 'informe_actual' in st.session_state:
