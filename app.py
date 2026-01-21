@@ -3,107 +3,115 @@ import os
 import sys
 import pandas as pd
 
-# 1. Configuración de página
+# 1. Configuración de página (Debe ser lo primero)
 st.set_page_config(page_title="Auditoría Tregolam", layout="wide")
 
-# Rutas
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(BASE_DIR, "scripts"))
+# 2. Solución al problema de Rutas (Punto 4)
+# Aseguramos que las carpetas existan antes de cualquier operación
+base_path = os.path.dirname(os.path.abspath(__file__))
+entrada_dir = os.path.join(base_path, "entrada")
+salida_dir = os.path.join(base_path, "salida")
+os.makedirs(entrada_dir, exist_ok=True)
+os.makedirs(salida_dir, exist_ok=True)
+
+# Importación de módulos locales
+sys.path.append(os.path.join(base_path, "scripts"))
 import precorreccion
 import comprobacion
 
-st.title("🔍 Panel de Control: Auditoría Ortotipográfica")
+st.title("🔍 Panel de Auditoría Ortotipográfica")
 
-# --- LÓGICA DE CONTROL DE ESTADO ---
-# Inicializamos variables si no existen
-if 'procesando' not in st.session_state:
-    st.session_state['procesando'] = False
-if 'ultimo_fichero' not in st.session_state:
-    st.session_state['ultimo_fichero'] = None
+# --- GESTIÓN DE ESTADO (SESSION STATE) ---
+if 'fichero_procesado' not in st.session_state:
+    st.session_state['fichero_procesado'] = False
+if 'nombre_informe' not in st.session_state:
+    st.session_state['nombre_informe'] = None
 
-# 2. Subida de archivo
-uploaded_file = st.file_uploader("Sube tu manuscrito (.docx)", type="docx", key="uploader_final")
+# 3. Subida de archivo con KEY ÚNICO (Punto 1)
+uploaded_file = st.file_uploader(
+    "Sube tu manuscrito (.docx)", 
+    type="docx", 
+    key="uploader_manuscrito_unico" 
+)
 
 if uploaded_file:
-    # Si el usuario sube un archivo distinto, reseteamos todo el estado
-    if st.session_state['ultimo_fichero'] != uploaded_file.name:
-        st.session_state['ultimo_fichero'] = uploaded_file.name
-        st.session_state['procesando'] = False
-        if 'informe_actual' in st.session_state:
-            del st.session_state['informe_actual']
+    # Si el usuario sube un archivo nuevo, reseteamos el estado
+    if st.session_state.get('ultimo_nombre') != uploaded_file.name:
+        st.session_state['fichero_procesado'] = False
+        st.session_state['ultimo_nombre'] = uploaded_file.name
 
-    ruta_entrada = os.path.join("entrada", uploaded_file.name)
-    os.makedirs("entrada", exist_ok=True)
-    os.makedirs("salida", exist_ok=True)
-    
-    with open(ruta_entrada, "wb") as f:
+    ruta_archivo_entrada = os.path.join(entrada_dir, uploaded_file.name)
+    with open(ruta_archivo_entrada, "wb") as f:
         f.write(uploaded_file.getbuffer())
-    
+
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("✨ 1. Ejecutar Precorrección", key="btn_pre"):
-            with st.spinner("Limpiando..."):
-                res = precorreccion.ejecutar_precorreccion(uploaded_file.name)
-                st.success(res)
+        # Botón 1 con Key único
+        if st.button("✨ 1. Precorrección", key="btn_ejecutar_pre"):
+            with st.spinner("Limpiando espacios y dobles párrafos..."):
+                precorreccion.ejecutar_precorreccion(uploaded_file.name)
+                st.success("Precorrección completada.")
 
     with col2:
-        if st.button("🤖 2. Iniciar Auditoría IA", key="btn_ia"):
-            nombre_txt = f"Informe_{uploaded_file.name.replace('.docx', '.txt')}"
-            ruta_txt = os.path.join("salida", nombre_txt)
-            
-            # BORRAMOS el informe viejo antes de empezar el nuevo
-            if os.path.exists(ruta_txt):
-                os.remove(ruta_txt)
-                
+        # Botón 2 con Key único e invocación a función correcta (Punto 2)
+        if st.button("🤖 2. Iniciar Auditoría IA", key="btn_ejecutar_ia"):
             with st.spinner("Analizando con IA..."):
+                # Llamada a la función exacta requerida: comprobar_archivo
                 comprobacion.comprobar_archivo(uploaded_file.name)
-                st.session_state['informe_actual'] = nombre_txt
-                st.session_state['procesando'] = True
+                
+                # Guardamos en el estado para habilitar la vista de resultados
+                st.session_state['nombre_informe'] = f"Informe_{uploaded_file.name.replace('.docx', '.txt')}"
+                st.session_state['fichero_procesado'] = True
                 st.rerun()
 
-    # --- RENDERIZADO (Solo si se ha pulsado el botón 2 en esta sesión) ---
-    if st.session_state.get('procesando') and 'informe_actual' in st.session_state:
-        ruta_txt = os.path.join("salida", st.session_state['informe_actual'])
+    # --- RENDERIZADO DE RESULTADOS ---
+    if st.session_state['fichero_procesado'] and st.session_state['nombre_informe']:
+        ruta_txt = os.path.join(salida_dir, st.session_state['nombre_informe'])
         
         if os.path.exists(ruta_txt):
+            # Leemos el archivo para mostrarlo en tablas
             datos = []
             with open(ruta_txt, "r", encoding="utf-8") as f:
-                for line in f:
-                    if "|" in line:
-                        partes = [p.strip() for p in line.split("|")]
+                for linea in f:
+                    if "|" in linea:
+                        partes = [p.strip() for p in linea.split("|")]
                         if len(partes) >= 5:
                             datos.append({
-                                "Categoría": partes[0], 
-                                "ID": partes[1], 
-                                "Original": partes[2], 
-                                "Sugerencia": partes[3], 
+                                "Categoría": partes[0], "ID": partes[1], 
+                                "Original": partes[2], "Sugerencia": partes[3], 
                                 "Motivo": partes[4]
                             })
-
+            
             if datos:
                 df = pd.DataFrame(datos)
-
-                def mostrar_seccion(titulo, filtro, emoji, color_key):
-                    st.subheader(f"{emoji} {titulo}")
+                
+                # Función interna para dibujar tablas usando width='stretch' (Punto 3)
+                def mostrar_tabla(titulo, filtro, color_key):
+                    st.subheader(titulo)
                     mask = df["Categoría"].str.contains(filtro, case=False, na=False)
-                    df_filtrado = df[mask].copy()
+                    df_filtrado = df[mask]
                     
                     if not df_filtrado.empty:
-                        # Negritas reales sin asteriscos
                         st.dataframe(
-                            df_filtrado.style.map(lambda x: 'font-weight: bold;', subset=['Original']),
-                            width="stretch", 
-                            hide_index=True,
-                            key=f"tabla_{color_key}"
+                            df_filtrado, 
+                            width="stretch", # Solución Punto 3
+                            hide_index=True, 
+                            key=f"tabla_resultado_{color_key}" # Key único
                         )
                     else:
-                        st.success(f"✅ Sin errores en {titulo.lower()}.")
+                        st.info(f"No se detectaron hallazgos en {titulo}.")
 
-                mostrar_seccion("ERRORES ORTOGRÁFICOS", "ORTOGRAFIA|ORTOGRAFÍA", "🔴", "roja")
-                mostrar_seccion("ERRORES DE FORMATO", "FORMATO", "🟡", "amarilla")
-                mostrar_seccion("SUGERENCIAS Y ESTILO", "SUGERENCIA", "🟢", "verde")
-                
+                mostrar_tabla("🔴 Ortografía", "ORTOGRAFIA|ORTOGRAFÍA", "orto")
+                mostrar_tabla("🟡 Formato", "FORMATO", "form")
+                mostrar_tabla("🟢 Sugerencias", "SUGERENCIA", "sug")
+
+                # Botón de Descarga con Key Dinámico (Punto 1)
                 st.divider()
-                with open(ruta_txt, "rb") as f:
-                    st.download_button("📥 Descargar Informe", f, file_name=st.session_state['informe_actual'], key="btn_dl")
+                with open(ruta_txt, "rb") as f_descarga:
+                    st.download_button(
+                        label="📥 Descargar Informe Completo",
+                        data=f_descarga,
+                        file_name=st.session_state['nombre_informe'],
+                        key=f"btn_descarga_{st.session_state['nombre_informe']}" # Key dinámico único
+                    )
