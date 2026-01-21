@@ -69,52 +69,52 @@ if uploaded_file:
                             "Motivo": partes[4]
                         })
 
-# --- RENDERIZADO DEL PANEL DE COLORES CON NEGRITAS REALES ---
+# --- RENDERIZADO DEL PANEL DE COLORES SIN ERRORES DE ID ---
                 if datos:
                     df = pd.DataFrame(datos)
 
-                    # Función interna para procesar y mostrar cada tabla con estilo
-                    def mostrar_seccion(titulo, filtro, emoji, clave_tabla):
+                    # 1. Función para mostrar cada sección evitando duplicados
+                    def mostrar_seccion_segura(titulo, filtro, emoji, id_unico):
                         st.subheader(f"{emoji} {titulo}")
                         
-                        # Filtramos por categoría (insensible a mayúsculas/minúsculas)
                         mask = df["Categoría"].str.contains(filtro, case=False, na=False)
-                        df_filtrado = df[mask]
+                        df_filtrado = df[mask].copy()
                         
                         if not df_filtrado.empty:
-                            # APLICAR NEGRITA REAL: Usamos Styler de Pandas para la columna Original
-                            # Esto lo pone en negrita visualmente sin añadir asteriscos al texto
+                            # Aplicar negrita visual (CSS) a la columna Original
                             df_estilizado = df_filtrado.style.map(
                                 lambda x: 'font-weight: bold;', 
                                 subset=['Original']
                             )
-                            
+                            # Usamos una key única para que Streamlit no se duplique
                             st.dataframe(
                                 df_estilizado, 
                                 use_container_width=True, 
                                 hide_index=True,
-                                key=clave_tabla
+                                key=f"tabla_{id_unico}_{uploaded_file.name}"
                             )
                         else:
                             st.success(f"✅ Sin incidencias en {titulo.lower()}.")
 
-                    # 1. SECCIÓN ROJA: ORTOGRAFÍA
-                    mostrar_seccion("ERRORES ORTOGRÁFICOS", "ORTOGRAFIA|ORTOGRAFÍA", "🔴", "tabla_orto")
-
-                    # 2. SECCIÓN AMARILLA: FORMATO
-                    mostrar_seccion("ERRORES DE FORMATO", "FORMATO", "🟡", "tabla_form")
-
-                    # 3. SECCIÓN VERDE: SUGERENCIAS
-                    mostrar_seccion("SUGERENCIAS Y ESTILO", "SUGERENCIA", "🟢", "tabla_sug")
+                    # Dibujamos las 3 tablas con IDs únicos
+                    mostrar_seccion_segura("ERRORES ORTOGRÁFICOS", "ORTOGRAFIA|ORTOGRAFÍA", "🔴", "orto")
+                    mostrar_seccion_segura("ERRORES DE FORMATO", "FORMATO", "🟡", "form")
+                    mostrar_seccion_segura("SUGERENCIAS Y ESTILO", "SUGERENCIA", "🟢", "sug")
                     
-                    # Espacio extra y botón de descarga
                     st.divider()
-                    with open(ruta_txt, "rb") as f:
-                        st.download_button(
-                            label="📥 Descargar Informe Completo (TXT)",
-                            data=f,
-                            file_name=st.session_state['informe_actual'],
-                            mime="text/plain"
-                        )
+
+                    # 2. BOTÓN DE DESCARGA SEGURO (Aquí estaba el error)
+                    # Añadimos una key dinámica para que no choque con nada
+                    try:
+                        with open(ruta_txt, "rb") as f:
+                            btn = st.download_button(
+                                label="📥 Descargar Informe Completo (TXT)",
+                                data=f,
+                                file_name=st.session_state['informe_actual'],
+                                mime="text/plain",
+                                key=f"download_btn_{uploaded_file.name}" # KEY ÚNICA
+                            )
+                    except Exception as e:
+                        st.error("Error al preparar la descarga. Reintente en un momento.")
                 else:
                     st.warning("El informe está vacío o el formato no es compatible.")
