@@ -35,29 +35,38 @@ Si no hay errores en el bloque, responde únicamente: S_OK"""
 
 def comprobar_archivo(nombre_archivo):
     ruta_lectura = os.path.join(ENTRADA_DIR, nombre_archivo)
+    nombre_txt = f"Informe_{nombre_archivo.replace('.docx', '.txt')}"
+    ruta_txt = os.path.join(SALIDA_DIR, nombre_txt)
     
-    try:
-        if not os.path.exists(ruta_lectura):
-            return f"ERROR: Archivo no encontrado"
+    # 1. Limpiamos el archivo si ya existía para empezar de cero
+    with open(ruta_txt, "w", encoding="utf-8") as f:
+        f.write("") 
 
+    try:
         doc = Document(ruta_lectura)
-        resultados = []
         bloque = []
-        
-        # Filtrar párrafos útiles para no saturar la IA
         parrafos = [p.text.strip() for p in doc.paragraphs if len(p.text.strip()) > 5]
 
         for i, texto in enumerate(parrafos):
             bloque.append(f"ID_{i+1}: {texto}")
             
-            # Procesar en bloques de 10
-            if len(bloque) >= 10:
+            if len(bloque) >= 8: # Bajamos un poco el bloque para ganar velocidad de respuesta
                 respuesta = llamar_ia("\n".join(bloque))
                 if respuesta and "S_OK" not in respuesta.upper():
-                    for linea in respuesta.split("\n"):
-                        if "|" in linea:
-                            resultados.append(linea.strip())
+                    # ESCRIBIMOS AL INSTANTE EN EL DISCO
+                    with open(ruta_txt, "a", encoding="utf-8") as f:
+                        f.write(respuesta.strip() + "\n")
                 bloque = []
+
+        if bloque:
+            respuesta = llamar_ia("\n".join(bloque))
+            if respuesta and "S_OK" not in respuesta.upper():
+                with open(ruta_txt, "a", encoding="utf-8") as f:
+                    f.write(respuesta.strip() + "\n")
+
+        return nombre_txt
+    except Exception as e:
+        return f"ERROR: {str(e)}"
 
         # Procesar bloque restante
         if bloque:
@@ -97,3 +106,4 @@ def llamar_ia(texto_bloque):
         return res.choices[0].message.content.strip()
     except Exception:
         return "S_OK" # Si falla la IA, devolvemos S_OK para no bloquear el bucle
+
