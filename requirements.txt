@@ -3,3 +3,4 @@ python-docx
 python-dotenv
 pandas
 pyspellchecker
+openai
