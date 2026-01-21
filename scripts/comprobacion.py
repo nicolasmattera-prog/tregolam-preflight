@@ -4,48 +4,43 @@ from docx import Document
 from openai import OpenAI
 from dotenv import load_dotenv
 
-# Cargamos variables de entorno
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# --- CONFIGURACIÓN DE RUTAS ABSOLUTAS ---
-# Localizamos la raíz del proyecto (subiendo un nivel desde 'scripts/')
+# Rutas absolutas para Streamlit Cloud
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENTRADA_DIR = os.path.join(BASE_DIR, "entrada")
 SALIDA_DIR = os.path.join(BASE_DIR, "salida")
 
-# Instrucción de "Silencio" mejorada para evitar ruidos y errores de estilo
-PROMPT_AUDITORIA = """Actúa como un auditor ortotipográfico riguroso. 
-Tu objetivo es encontrar errores TÉCNICOS, no de estilo.
+PROMPT_AUDITORIA = """Actúa como un auditor ortotipográfico experto. Tu tarea es clasificar errores en 3 categorías: ORTOGRAFIA, FORMATO o SUGERENCIA.
 
-REGLAS CRÍTICAS:
-1. CIFRAS: Grupos de 3 con espacio de no ruptura (Ej: 20 000). No usar puntos ni comas.
-2. COMILLAS: Usar siempre latinas « » para citas y títulos. Cambia "" o '' por « ».
-3. RAYAS: Diálogos con raya larga —. Pegada al texto: —Hola.
+REGLAS TÉCNICAS (Solo reportar si se incumplen):
+1. CIFRAS: Espacio de no ruptura en miles (Ej: 20 000). NO puntos ni comas.
+2. COMILLAS: Convertir "" o '' en latinas « ». SI YA SON « », NO REPORTAR NADA.
+3. RAYAS: Diálogos con raya larga — pegada al texto (Ej: —Hola).
 4. SÍMBOLOS: Espacio entre cifra y símbolo (Ej: 10 %).
-5. MAYÚSCULAS: Solo corregir si es un error ortográfico flagrante. NO sugieras cambios de estilo.
 
-FORMATO DE SALIDA:
-- Si el texto CUMPLE las reglas o no hay errores claros, responde SOLO: S_OK
-- Si hay un ERROR, responde: ID_X: "original" -> "corrección" (Breve motivo).
-- NUNCA respondas que algo es "Correcto". Si es correcto, di: S_OK"""
+CATEGORÍAS DE SALIDA:
+- [ORTOGRAFIA]: Erratas, concordancia o faltas graves.
+- [FORMATO]: Errores en las 4 reglas técnicas de arriba.
+- [SUGERENCIA]: Recomendaciones de estilo o dudas (como nombres propios).
+
+FORMATO DE RESPUESTA (ESTRICTO):
+- Si hay error: CATEGORIA | ID_X | "original" | "corrección" | Motivo
+- Si el párrafo es correcto o tienes dudas leves: S_OK
+- NUNCA expliques nada fuera de este formato."""
 
 def comprobar_archivo(nombre_archivo):
-    """
-    Realiza la auditoría técnica usando rutas absolutas para evitar el AttributeError en Streamlit Cloud.
-    """
-    # Ruta de lectura corregida para apuntar a la raíz/entrada
     ruta_lectura = os.path.join(ENTRADA_DIR, nombre_archivo)
     
     try:
-        # Verificación de seguridad
         if not os.path.exists(ruta_lectura):
-            return f"ERROR: No se encuentra el archivo en {ruta_lectura}"
+            return f"ERROR: Archivo no encontrado en {ruta_lectura}"
 
         doc = Document(ruta_lectura)
-        informe_final = [f"INFORME DE AUDITORÍA: {nombre_archivo}\n" + "="*40]
+        # El informe ahora será una lista de datos estructurados
+        resultados = []
         
-        # Procesamos párrafos de 10 en 10
         bloque = []
         for i, p in enumerate(doc.paragraphs):
             texto = p.text.strip()
@@ -54,30 +49,26 @@ def comprobar_archivo(nombre_archivo):
             
             if len(bloque) >= 10:
                 respuesta = llamar_ia("\n".join(bloque))
-                # Filtrado estricto para evitar imprimir "Correcto" o explicaciones vacías
                 for linea in respuesta.split("\n"):
-                    linea_limpia = linea.strip()
-                    if linea_limpia and "S_OK" not in linea_limpia.upper() and "ID_" in linea_limpia:
-                        informe_final.append(linea_limpia)
+                    if "S_OK" not in linea.upper() and "|" in linea:
+                        resultados.append(linea.strip())
                 bloque = []
 
-        # Procesar resto del documento
         if bloque:
             respuesta = llamar_ia("\n".join(bloque))
             for linea in respuesta.split("\n"):
-                linea_limpia = linea.strip()
-                if linea_limpia and "S_OK" not in linea_limpia.upper() and "ID_" in linea_limpia:
-                    informe_final.append(linea_limpia)
+                if "S_OK" not in linea.upper() and "|" in linea:
+                    resultados.append(linea.strip())
 
-        if len(informe_final) <= 1:
-            informe_final.append("No se detectaron violaciones técnicas de las reglas.")
-
-        # Definimos nombre y ruta de salida absoluta (raíz/salida)
+        # Guardamos el informe temporalmente como TXT, pero estructurado por "|"
         nombre_txt = f"Informe_{nombre_archivo.replace('.docx', '.txt')}"
         ruta_txt = os.path.join(SALIDA_DIR, nombre_txt)
         
         with open(ruta_txt, "w", encoding="utf-8") as f:
-            f.write("\n".join(informe_final))
+            if not resultados:
+                f.write("S_OK")
+            else:
+                f.write("\n".join(resultados))
             
         return nombre_txt
 
@@ -92,7 +83,6 @@ def llamar_ia(texto_bloque):
                 {"role": "system", "content": PROMPT_AUDITORIA},
                 {"role": "user", "content": texto_bloque}
             ],
-            # Mantenemos temperatura 0 para que no haya variabilidad (estocasticidad)
             temperature=0
         )
         return res.choices[0].message.content.strip()
