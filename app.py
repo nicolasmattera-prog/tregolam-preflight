@@ -1,16 +1,18 @@
 import streamlit as st
 import os
 import sys
+import pandas as pd
 
 # 1. Configuración de rutas para encontrar la carpeta 'scripts'
 sys.path.append(os.path.join(os.path.dirname(__file__), "scripts"))
 
-# 2. Importación de tus herramientas (ahora dentro de scripts/)
+# 2. Importación de tus herramientas
 import precorreccion
 import comprobacion
 
-st.set_page_config(page_title="Auditoría Tregolam", layout="centered")
-st.title("🔍 Auditoría Ortotipográfica")
+# Configuración de página ancha para que las tablas se vean bien
+st.set_page_config(page_title="Auditoría Tregolam", layout="wide")
+st.title("🔍 Panel de Control: Auditoría Ortotipográfica")
 
 # Subida de archivo
 uploaded_file = st.file_uploader("Sube tu manuscrito (.docx)", type="docx")
@@ -27,33 +29,73 @@ if uploaded_file:
 
     # --- BOTÓN 1: PRECORRECCIÓN ---
     with col1:
-        if st.button("✨ Ejecutar Precorrección"):
+        if st.button("✨ 1. Ejecutar Precorrección"):
             with st.spinner("Limpiando espacios y formatos..."):
-                # Llamada al archivo en scripts/precorreccion.py
                 resultado = precorreccion.ejecutar_precorreccion(uploaded_file.name)
-                if "ERROR" in resultado:
-                    st.error(resultado)
-                else:
-                    st.success("¡Limpieza completada!")
-                    st.write(resultado)
+                st.success(resultado)
 
     # --- BOTÓN 2: COMPROBACIÓN (IA) ---
     with col2:
-        if st.button("🤖 Ejecutar Auditoría"):
-            with st.spinner("Analizando con Inteligencia Artificial..."):
-                # Llamada al archivo en scripts/comprobacion.py
+        if st.button("🤖 2. Iniciar Auditoría IA"):
+            with st.spinner("Analizando y clasificando errores..."):
                 nombre_informe = comprobacion.comprobar_archivo(uploaded_file.name)
                 
                 if "ERROR" in nombre_informe:
                     st.error(nombre_informe)
                 else:
-                    ruta_salida = os.path.join("salida", nombre_informe)
-                    # Ofrecer la descarga del informe generado
-                    with open(ruta_salida, "rb") as f:
-                        st.download_button(
-                            label="📥 Descargar Informe",
-                            data=f,
-                            file_name=nombre_informe,
-                            mime="text/plain"
-                        )
-                    st.success("Auditoría finalizada.")
+                    # Guardamos el nombre en la sesión para que las tablas no desaparezcan
+                    st.session_state['informe_actual'] = nombre_informe
+                    st.success("Análisis completado.")
+
+    # --- RENDERIZADO DEL PANEL DE COLORES ---
+    if 'informe_actual' in st.session_state:
+        ruta_txt = os.path.join("salida", st.session_state['informe_actual'])
+        
+        if os.path.exists(ruta_txt):
+            with open(ruta_txt, "r", encoding="utf-8") as f:
+                lineas = f.readlines()
+
+            # Convertimos el TXT estructurado en una lista para tablas
+            datos = []
+            for line in lineas:
+                if "|" in line:
+                    partes = [p.strip() for p in line.split("|")]
+                    if len(partes) >= 5:
+                        datos.append({
+                            "Categoría": partes[0],
+                            "ID": partes[1],
+                            "Original": partes[2],
+                            "Sugerencia": partes[3],
+                            "Motivo": partes[4]
+                        })
+
+            if datos:
+                df = pd.DataFrame(datos)
+
+                # SECCIÓN ROJA: ORTOGRAFÍA
+                st.subheader("🔴 ERRORES ORTOGRÁFICOS")
+                df_orto = df[df["Categoría"].str.contains("ORTOGRAFIA", na=False)]
+                if not df_orto.empty:
+                    st.data_editor(df_orto, use_container_width=True, hide_index=True, key="tabla_orto")
+                else:
+                    st.write("✅ Sin errores de ortografía detectados.")
+
+                # SECCIÓN AMARILLA: FORMATO
+                st.subheader("🟡 ERRORES DE FORMATO")
+                df_form = df[df["Categoría"].str.contains("FORMATO", na=False)]
+                if not df_form.empty:
+                    st.data_editor(df_form, use_container_width=True, hide_index=True, key="tabla_form")
+                else:
+                    st.write("✅ Formato técnico correcto (Rayas, comillas, cifras).")
+
+                # SECCIÓN VERDE: SUGERENCIAS
+                st.subheader("🟢 SUGERENCIAS Y ESTILO")
+                df_sug = df[df["Categoría"].str.contains("SUGERENCIA", na=False)]
+                if not df_sug.empty:
+                    st.data_editor(df_sug, use_container_width=True, hide_index=True, key="tabla_sug")
+                else:
+                    st.write("✅ Sin sugerencias adicionales.")
+                
+                # Opción de descarga del informe original por si acaso
+                with open(ruta_txt, "rb") as f:
+                    st.download_button("📥 Descargar Informe en Bruto (TXT)", f, file_name=st.session_state['informe_actual'])
