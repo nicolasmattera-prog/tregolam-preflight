@@ -80,7 +80,7 @@ PASIVAS = [
 # ----------
 GERUNDIOS = [
     (re.compile(r'\b(\w+ó|ó)\s*,?\s*(generando|provocando|creando|dejando)\b', re.I),
-     r'\1 y \3ó'),
+     r'\1 y \2ó'),
 ]
 
 # ----------
