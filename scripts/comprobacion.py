@@ -1,85 +1,116 @@
+import streamlit as st
 import os
-from docx import Document
-from openai import OpenAI
-from dotenv import load_dotenv
+import sys
+import pandas as pd
 
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# 1. Configuración de rutas para encontrar la carpeta 'scripts'
+sys.path.append(os.path.join(os.path.dirname(__file__), "scripts"))
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ENTRADA_DIR = os.path.join(BASE_DIR, "entrada")
-SALIDA_DIR = os.path.join(BASE_DIR, "salida")
+# 2. Importación de tus herramientas
+import precorreccion
+import comprobacion
 
-PROMPT_AUDITORIA = """Actúa como un auditor ortotipográfico experto. Tu tarea es clasificar errores en: ORTOGRAFIA, FORMATO o SUGERENCIA.
+# Configuración de página ancha para que las tablas se vean bien
+st.set_page_config(page_title="Auditoría Tregolam", layout="wide")
+st.title("🔍 Panel de Control: Auditoría Ortotipográfica")
 
-REGLAS TÉCNICAS:
-1. CIFRAS: Espacio de no ruptura en miles (Ej: 20 000). NO puntos ni comas.
-2. COMILLAS: Convertir "" o '' en latinas « ». SI YA SON « », NO REPORTAR NADA.
-3. RAYAS: Diálogos con raya larga — pegada al texto (Ej: —Hola).
-4. SÍMBOLOS: Espacio entre cifra y símbolo (Ej: 10 %).
+# Subida de archivo
+uploaded_file = st.file_uploader("Sube tu manuscrito (.docx)", type="docx")
 
-FORMATO DE RESPUESTA (ESTRICTO - UNA SOLA LÍNEA POR ERROR):
-CATEGORIA | ID | ORIGINAL | CORRECCION | MOTIVO
-Si no hay errores, responde únicamente: S_OK"""
-
-def comprobar_archivo(nombre_archivo):
-    ruta_lectura = os.path.join(ENTRADA_DIR, nombre_archivo)
-    nombre_txt = f"Informe_{nombre_archivo.replace('.docx', '.txt')}"
-    ruta_txt = os.path.join(SALIDA_DIR, nombre_txt)
+if uploaded_file:
+    # Guardamos el archivo físicamente en la carpeta 'entrada'
+    ruta_entrada = os.path.join("entrada", uploaded_file.name)
+    if not os.path.exists("entrada"):
+        os.makedirs("entrada")
     
-    # Limpiamos el archivo para empezar de cero
-    with open(ruta_txt, "w", encoding="utf-8") as f:
-        f.write("")
+    with open(ruta_entrada, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    
+    st.info(f"Archivo cargado: {uploaded_file.name}")
+    
+    col1, col2 = st.columns(2)
 
-    try:
-        doc = Document(ruta_lectura)
-        parrafos = [p.text.strip() for p in doc.paragraphs if len(p.text.strip()) > 5]
-        bloque = []
+    # --- BOTÓN 1: PRECORRECCIÓN ---
+    with col1:
+        if st.button("✨ 1. Ejecutar Precorrección"):
+            with st.spinner("Limpiando espacios y formatos..."):
+                resultado = precorreccion.ejecutar_precorreccion(uploaded_file.name)
+                st.success(resultado)
 
-        for i, texto in enumerate(parrafos):
-            bloque.append(f"ID_{i+1}: {texto}")
+    # --- BOTÓN 2: COMPROBACIÓN (IA) ---
+    with col2:
+        if st.button("🤖 2. Iniciar Auditoría IA"):
+            # Establecemos el nombre del informe en el estado de la sesión
+            st.session_state['informe_actual'] = f"Informe_{uploaded_file.name.replace('.docx', '.txt')}"
             
-            if len(bloque) >= 8:
-                respuesta = llamar_ia("\n".join(bloque))
-                procesar_y_guardar(respuesta, ruta_txt)
-                bloque = []
+            with st.spinner("Analizando manuscrito... Los resultados aparecerán abajo conforme se generen."):
+                nombre_informe = comprobacion.comprobar_archivo(uploaded_file.name)
+                
+                if "ERROR" in nombre_informe:
+                    st.error(nombre_informe)
+                else:
+                    st.success("¡Auditoría finalizada con éxito!")
 
-        if bloque:
-            respuesta = llamar_ia("\n".join(bloque))
-            procesar_y_guardar(respuesta, ruta_txt)
+    # --- RENDERIZADO DEL PANEL DE COLORES ---
+    if 'informe_actual' in st.session_state:
+        ruta_txt = os.path.join("salida", st.session_state['informe_actual'])
+        
+        if os.path.exists(ruta_txt):
+            try:
+                with open(ruta_txt, "r", encoding="utf-8") as f:
+                    lineas = f.readlines()
 
-        return nombre_txt
-    except Exception as e:
-        return f"ERROR: {str(e)}"
+                datos = []
+                for line in lineas:
+                    line = line.strip()
+                    if "|" in line:
+                        # Procesamiento de columnas según el formato estricto del motor
+                        partes = [p.strip() for p in line.split("|")]
+                        if len(partes) >= 5:
+                            datos.append({
+                                "Categoría": partes[0].replace("[", "").replace("]", ""),
+                                "ID": partes[1],
+                                "Original": partes[2],
+                                "Sugerencia": partes[3],
+                                "Motivo": partes[4]
+                            })
 
-def procesar_y_guardar(respuesta, ruta_dest):
-    """Limpia la respuesta de la IA de cabeceras y líneas fragmentadas antes de guardar."""
-    if not respuesta or "S_OK" in respuesta.upper():
-        return
+                if datos:
+                    df = pd.DataFrame(datos)
 
-    lineas_validas = []
-    # Dividimos por líneas y filtramos morralla
-    for linea in respuesta.split("\n"):
-        linea = linea.strip()
-        # Solo aceptamos líneas con el separador que NO sean la cabecera
-        if "|" in linea and "CATEGORIA" not in linea.upper() and "ORIGINAL" not in linea.upper():
-            # Limpiamos espacios internos para evitar saltos de línea fantasmas
-            lineas_validas.append(" ".join(linea.split()))
+                    # --- DETALLE: MARCAR ORIGINAL EN NEGRITA ---
+                    # Aplicamos negritas usando formato Markdown para resaltar erratas 
+                    df["Original"] = df["Original"].apply(lambda x: f"**{x}**")
 
-    if lineas_validas:
-        with open(ruta_dest, "a", encoding="utf-8") as f:
-            f.write("\n".join(lineas_validas) + "\n")
+                    # SECCIÓN ROJA: ORTOGRAFÍA
+                    st.subheader("🔴 ERRORES ORTOGRÁFICOS")
+                    df_orto = df[df["Categoría"].str.contains("ORTOGRAFIA|ORTOGRAFÍA", case=False, na=False)]
+                    if not df_orto.empty:
+                        st.data_editor(df_orto, use_container_width=True, hide_index=True, key="tabla_orto")
+                    else:
+                        st.write("✅ Sin errores de ortografía detectados aún.")
 
-def llamar_ia(texto_bloque):
-    try:
-        res = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": PROMPT_AUDITORIA},
-                {"role": "user", "content": texto_bloque}
-            ],
-            temperature=0
-        )
-        return res.choices[0].message.content.strip()
-    except:
-        return "S_OK"
+                    # SECCIÓN AMARILLA: FORMATO
+                    st.subheader("🟡 ERRORES DE FORMATO")
+                    df_form = df[df["Categoría"].str.contains("FORMATO", case=False, na=False)]
+                    if not df_form.empty:
+                        st.data_editor(df_form, use_container_width=True, hide_index=True, key="tabla_form")
+                    else:
+                        st.write("✅ Formato técnico correcto (Rayas, comillas, cifras).")
+
+                    # SECCIÓN VERDE: SUGERENCIAS
+                    st.subheader("🟢 SUGERENCIAS Y ESTILO")
+                    df_sug = df[df["Categoría"].str.contains("SUGERENCIA", case=False, na=False)]
+                    if not df_sug.empty:
+                        st.data_editor(df_sug, use_container_width=True, hide_index=True, key="tabla_sug")
+                    else:
+                        st.write("✅ Sin sugerencias adicionales.")
+                    
+                    # Opción de descarga del informe original (sin negritas para limpieza) 
+                    with open(ruta_txt, "rb") as f:
+                        st.download_button("📥 Descargar Informe en Bruto (TXT)", f, file_name=st.session_state['informe_actual'])
+                else:
+                    st.info("El análisis está en curso. Las tablas se llenarán automáticamente...")
+            
+            except Exception as e:
+                st.warning("Actualizando visualización de datos...")
