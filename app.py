@@ -17,7 +17,7 @@ os.makedirs(salida_dir, exist_ok=True)
 # Importación de módulos locales
 sys.path.append(os.path.join(base_path, "scripts"))
 import precorreccion
-import comprobacion
+#import comprobacion
 
 st.title("🔍 Panel de Auditoría Ortotipográfica")
 
