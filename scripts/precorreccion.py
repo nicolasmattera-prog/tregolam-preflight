@@ -54,8 +54,8 @@ def ejecutar_precorreccion(name: str) -> str:
         for p in objetivos:
             original = p.text
             corregido = corregir_texto(original)
+            corregido = corregir_ortografia(corregido)
             aplicar_cambios_quirurgicos(p, original, corregido)
-
         # ---------- FORMATO ----------
         from docx.shared import Cm
         from docx.enum.text import WD_LINE_SPACING, WD_TAB_ALIGNMENT
@@ -86,6 +86,7 @@ def ejecutar_precorreccion(name: str) -> str:
         return f"✅ Archivo '{name}' procesado y guardado en salida."
     except Exception as e:
         return f"ERROR en precorrección: {str(e)}"
+
 
 
 
