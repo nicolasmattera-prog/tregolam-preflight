@@ -34,18 +34,27 @@ if uploaded_file:
                 resultado = precorreccion.ejecutar_precorreccion(uploaded_file.name)
                 st.success(resultado)
 
-    # --- BOTÓN 2: COMPROBACIÓN (IA) ---
+   # --- BOTÓN 2: COMPROBACIÓN (IA) ---
     with col2:
         if st.button("🤖 2. Iniciar Auditoría IA"):
-            with st.spinner("Analizando y clasificando errores..."):
+            # 1. Leer el documento para saber cuántos párrafos hay
+            from docx import Document
+            doc = Document(ruta_entrada)
+            total_parrafos = len([p for p in doc.paragraphs if len(p.text.strip()) > 5])
+            
+            progreso_bar = st.progress(0)
+            status_text = st.empty()
+            
+            with st.spinner("Analizando manuscrito..."):
+                # Llamamos a una versión modificada que nos diga por dónde va
                 nombre_informe = comprobacion.comprobar_archivo(uploaded_file.name)
                 
                 if "ERROR" in nombre_informe:
                     st.error(nombre_informe)
                 else:
-                    # Guardamos el nombre en la sesión para que las tablas no desaparezcan
                     st.session_state['informe_actual'] = nombre_informe
-                    st.success("Análisis completado.")
+                    progreso_bar.progress(100)
+                    status_text.success("¡Auditoría finalizada con éxito!")
 
     # --- RENDERIZADO DEL PANEL DE COLORES ---
     if 'informe_actual' in st.session_state:
