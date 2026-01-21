@@ -14,11 +14,21 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENTRADA_DIR = os.path.join(BASE_DIR, "entrada")
 SALIDA_DIR = os.path.join(BASE_DIR, "salida")
 
-# Instrucción de "Silencio": Si no hay error real, la IA debe responder OK.
-PROMPT_AUDITORIA = """Actúa como un auditor técnico de ortotipografía. 
-REGLAS: Cifras (20 000), Símbolos (10 %), Comillas (« »), Rayas de diálogo (—).
-TAREA: Si un párrafo tiene errores técnicos, lístalos como: ID_X: "original" -> "corrección" (Motivo).
-IMPORTANTE: Si el párrafo es correcto o no viola las reglas técnicas, responde ÚNICAMENTE la palabra: OK"""
+# Instrucción de "Silencio" mejorada para evitar ruidos y errores de estilo
+PROMPT_AUDITORIA = """Actúa como un auditor ortotipográfico riguroso. 
+Tu objetivo es encontrar errores TÉCNICOS, no de estilo.
+
+REGLAS CRÍTICAS:
+1. CIFRAS: Grupos de 3 con espacio de no ruptura (Ej: 20 000). No usar puntos ni comas.
+2. COMILLAS: Usar siempre latinas « » para citas y títulos. Cambia "" o '' por « ».
+3. RAYAS: Diálogos con raya larga —. Pegada al texto: —Hola.
+4. SÍMBOLOS: Espacio entre cifra y símbolo (Ej: 10 %).
+5. MAYÚSCULAS: Solo corregir si es un error ortográfico flagrante. NO sugieras cambios de estilo.
+
+FORMATO DE SALIDA:
+- Si el texto CUMPLE las reglas o no hay errores claros, responde SOLO: S_OK
+- Si hay un ERROR, responde: ID_X: "original" -> "corrección" (Breve motivo).
+- NUNCA respondas que algo es "Correcto". Si es correcto, di: S_OK"""
 
 def comprobar_archivo(nombre_archivo):
     """
@@ -44,17 +54,20 @@ def comprobar_archivo(nombre_archivo):
             
             if len(bloque) >= 10:
                 respuesta = llamar_ia("\n".join(bloque))
+                # Filtrado estricto para evitar imprimir "Correcto" o explicaciones vacías
                 for linea in respuesta.split("\n"):
-                    if "OK" not in linea.upper() and "ID_" in linea:
-                        informe_final.append(linea)
+                    linea_limpia = linea.strip()
+                    if linea_limpia and "S_OK" not in linea_limpia.upper() and "ID_" in linea_limpia:
+                        informe_final.append(linea_limpia)
                 bloque = []
 
         # Procesar resto del documento
         if bloque:
             respuesta = llamar_ia("\n".join(bloque))
             for linea in respuesta.split("\n"):
-                if "OK" not in linea.upper() and "ID_" in linea:
-                    informe_final.append(linea)
+                linea_limpia = linea.strip()
+                if linea_limpia and "S_OK" not in linea_limpia.upper() and "ID_" in linea_limpia:
+                    informe_final.append(linea_limpia)
 
         if len(informe_final) <= 1:
             informe_final.append("No se detectaron violaciones técnicas de las reglas.")
