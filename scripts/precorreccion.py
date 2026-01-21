@@ -67,15 +67,42 @@ def ejecutar_precorreccion(name: str) -> str:
                     for p in c.paragraphs:
                         objetivos.append(p)
 
+        # Correcciones ortotipográficas
         for p in objetivos:
             original = p.text
             corregido = corregir_texto(original)
             aplicar_cambios_quirurgicos(p, original, corregido)
 
+        # ---------- FORMATO ----------
+        from docx.shared import Cm
+        from docx.enum.text import WD_LINE_SPACING, WD_TAB_ALIGNMENT
+
+        # 1. Márgenes 2,5 cm
+        for sec in doc.sections:
+            sec.top_margin = Cm(2.5)
+            sec.bottom_margin = Cm(2.5)
+            sec.left_margin = Cm(2.5)
+            sec.right_margin = Cm(2.5)
+
+        # 2. Interlineado 1,15
+        for p in objetivos:
+            p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.MULTIPLE
+            p.paragraph_format.line_spacing = 1.15
+
+        # 3. Sangría primera línea 0,7 cm
+        for p in objetivos:
+            p.paragraph_format.first_line_indent = Cm(0.7)
+
+        # 4. Tabulador a 0,7 cm (por si se usa)
+        for p in objetivos:
+            p.paragraph_format.tab_stops.add_tab_stop(Cm(0.7), WD_TAB_ALIGNMENT.LEFT)
+
+        # Guardar
         ruta_salida = os.path.join(OUTPUT_FOLDER, name)
         doc.save(ruta_salida)
         return f"✅ Archivo '{name}' procesado y guardado en salida."
     except Exception as e:
         return f"ERROR en precorrección: {str(e)}"
+
 
 
