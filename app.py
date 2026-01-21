@@ -109,9 +109,10 @@ if uploaded_file:
                 # Botón de Descarga con Key Dinámico (Punto 1)
                 st.divider()
                 with open(ruta_txt, "rb") as f_descarga:
+                    import time
                     st.download_button(
                         label="📥 Descargar Informe Completo",
                         data=f_descarga,
                         file_name=st.session_state['nombre_informe'],
-                        key=f"btn_descarga_{st.session_state['nombre_informe']}" # Key dinámico único
+                        key=f"btn_descarga_{int(time.time() * 1000)}"  # siempre único
                     )
