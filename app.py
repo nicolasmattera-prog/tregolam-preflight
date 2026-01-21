@@ -69,35 +69,52 @@ if uploaded_file:
                             "Motivo": partes[4]
                         })
 
-            if datos:
-                df = pd.DataFrame(datos)
+# --- RENDERIZADO DEL PANEL DE COLORES CON NEGRITAS REALES ---
+                if datos:
+                    df = pd.DataFrame(datos)
 
-                # SECCIÓN ROJA: ORTOGRAFÍA
-                st.subheader("🔴 ERRORES ORTOGRÁFICOS")
-                df_orto = df[df["Categoría"].str.contains("ORTOGRAFIA|ORTOGRAFÍA", case=False, na=False)]
-                if not df_orto.empty:
-                    st.data_editor(df_orto, use_container_width=True, hide_index=True, key="tabla_orto")
-                else:
-                    st.success("✅ Sin errores de ortografía detectados.")
+                    # Función interna para procesar y mostrar cada tabla con estilo
+                    def mostrar_seccion(titulo, filtro, emoji, clave_tabla):
+                        st.subheader(f"{emoji} {titulo}")
+                        
+                        # Filtramos por categoría (insensible a mayúsculas/minúsculas)
+                        mask = df["Categoría"].str.contains(filtro, case=False, na=False)
+                        df_filtrado = df[mask]
+                        
+                        if not df_filtrado.empty:
+                            # APLICAR NEGRITA REAL: Usamos Styler de Pandas para la columna Original
+                            # Esto lo pone en negrita visualmente sin añadir asteriscos al texto
+                            df_estilizado = df_filtrado.style.map(
+                                lambda x: 'font-weight: bold;', 
+                                subset=['Original']
+                            )
+                            
+                            st.dataframe(
+                                df_estilizado, 
+                                use_container_width=True, 
+                                hide_index=True,
+                                key=clave_tabla
+                            )
+                        else:
+                            st.success(f"✅ Sin incidencias en {titulo.lower()}.")
 
-                # SECCIÓN AMARILLA: FORMATO
-                st.subheader("🟡 ERRORES DE FORMATO")
-                df_form = df[df["Categoría"].str.contains("FORMATO", case=False, na=False)]
-                if not df_form.empty:
-                    st.data_editor(df_form, use_container_width=True, hide_index=True, key="tabla_form")
-                else:
-                    st.success("✅ Formato técnico correcto (Rayas, comillas, cifras).")
+                    # 1. SECCIÓN ROJA: ORTOGRAFÍA
+                    mostrar_seccion("ERRORES ORTOGRÁFICOS", "ORTOGRAFIA|ORTOGRAFÍA", "🔴", "tabla_orto")
 
-                # SECCIÓN VERDE: SUGERENCIAS
-                st.subheader("🟢 SUGERENCIAS Y ESTILO")
-                df_sug = df[df["Categoría"].str.contains("SUGERENCIA", case=False, na=False)]
-                if not df_sug.empty:
-                    st.data_editor(df_sug, use_container_width=True, hide_index=True, key="tabla_sug")
+                    # 2. SECCIÓN AMARILLA: FORMATO
+                    mostrar_seccion("ERRORES DE FORMATO", "FORMATO", "🟡", "tabla_form")
+
+                    # 3. SECCIÓN VERDE: SUGERENCIAS
+                    mostrar_seccion("SUGERENCIAS Y ESTILO", "SUGERENCIA", "🟢", "tabla_sug")
+                    
+                    # Espacio extra y botón de descarga
+                    st.divider()
+                    with open(ruta_txt, "rb") as f:
+                        st.download_button(
+                            label="📥 Descargar Informe Completo (TXT)",
+                            data=f,
+                            file_name=st.session_state['informe_actual'],
+                            mime="text/plain"
+                        )
                 else:
-                    st.success("✅ Sin sugerencias adicionales.")
-                
-                # Opción de descarga
-                with open(ruta_txt, "rb") as f:
-                    st.download_button("📥 Descargar Informe Completo (TXT)", f, file_name=st.session_state['informe_actual'])
-            else:
-                st.warning("El informe no contiene errores detectados o el formato no es compatible.")
+                    st.warning("El informe está vacío o el formato no es compatible.")
