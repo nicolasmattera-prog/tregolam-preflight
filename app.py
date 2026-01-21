@@ -14,11 +14,14 @@ import comprobacion
 st.set_page_config(page_title="Auditoría Tregolam", layout="wide")
 st.title("🔍 Panel de Control: Auditoría Ortotipográfica")
 
+# Asegurar que las carpetas existen
+os.makedirs("entrada", exist_ok=True)
+os.makedirs("salida", exist_ok=True)
+
 # Subida de archivo
 uploaded_file = st.file_uploader("Sube tu manuscrito (.docx)", type="docx")
 
 if uploaded_file:
-    # Guardamos el archivo físicamente en la carpeta 'entrada'
     ruta_entrada = os.path.join("entrada", uploaded_file.name)
     with open(ruta_entrada, "wb") as f:
         f.write(uploaded_file.getbuffer())
@@ -34,19 +37,13 @@ if uploaded_file:
                 resultado = precorreccion.ejecutar_precorreccion(uploaded_file.name)
                 st.success(resultado)
 
-   # --- BOTÓN 2: COMPROBACIÓN (IA) ---
+    # --- BOTÓN 2: COMPROBACIÓN (IA) ---
     with col2:
         if st.button("🤖 2. Iniciar Auditoría IA"):
-            # 1. Leer el documento para saber cuántos párrafos hay
-            from docx import Document
-            doc = Document(ruta_entrada)
-            total_parrafos = len([p for p in doc.paragraphs if len(p.text.strip()) > 5])
-            
             progreso_bar = st.progress(0)
             status_text = st.empty()
             
-            with st.spinner("Analizando manuscrito..."):
-                # Llamamos a una versión modificada que nos diga por dónde va
+            with st.spinner("Analizando manuscrito... Esto puede tardar unos minutos."):
                 nombre_informe = comprobacion.comprobar_archivo(uploaded_file.name)
                 
                 if "ERROR" in nombre_informe:
@@ -64,11 +61,11 @@ if uploaded_file:
             with open(ruta_txt, "r", encoding="utf-8") as f:
                 lineas = f.readlines()
 
-            # Convertimos el TXT estructurado en una lista para tablas
             datos = []
             for line in lineas:
                 if "|" in line:
-                    partes = [p.strip() for p in line.split("|")]
+                    # Limpiamos espacios y posibles corchetes de la categoría
+                    partes = [p.strip().replace("[", "").replace("]", "") for p in line.split("|")]
                     if len(partes) >= 5:
                         datos.append({
                             "Categoría": partes[0],
@@ -83,28 +80,30 @@ if uploaded_file:
 
                 # SECCIÓN ROJA: ORTOGRAFÍA
                 st.subheader("🔴 ERRORES ORTOGRÁFICOS")
-                df_orto = df[df["Categoría"].str.contains("ORTOGRAFIA", na=False)]
+                df_orto = df[df["Categoría"].str.contains("ORTOGRAFIA|ORTOGRAFÍA", case=False, na=False)]
                 if not df_orto.empty:
                     st.data_editor(df_orto, use_container_width=True, hide_index=True, key="tabla_orto")
                 else:
-                    st.write("✅ Sin errores de ortografía detectados.")
+                    st.success("✅ Sin errores de ortografía detectados.")
 
                 # SECCIÓN AMARILLA: FORMATO
                 st.subheader("🟡 ERRORES DE FORMATO")
-                df_form = df[df["Categoría"].str.contains("FORMATO", na=False)]
+                df_form = df[df["Categoría"].str.contains("FORMATO", case=False, na=False)]
                 if not df_form.empty:
                     st.data_editor(df_form, use_container_width=True, hide_index=True, key="tabla_form")
                 else:
-                    st.write("✅ Formato técnico correcto (Rayas, comillas, cifras).")
+                    st.success("✅ Formato técnico correcto (Rayas, comillas, cifras).")
 
                 # SECCIÓN VERDE: SUGERENCIAS
                 st.subheader("🟢 SUGERENCIAS Y ESTILO")
-                df_sug = df[df["Categoría"].str.contains("SUGERENCIA", na=False)]
+                df_sug = df[df["Categoría"].str.contains("SUGERENCIA", case=False, na=False)]
                 if not df_sug.empty:
                     st.data_editor(df_sug, use_container_width=True, hide_index=True, key="tabla_sug")
                 else:
-                    st.write("✅ Sin sugerencias adicionales.")
+                    st.success("✅ Sin sugerencias adicionales.")
                 
-                # Opción de descarga del informe original por si acaso
+                # Opción de descarga
                 with open(ruta_txt, "rb") as f:
-                    st.download_button("📥 Descargar Informe en Bruto (TXT)", f, file_name=st.session_state['informe_actual'])
+                    st.download_button("📥 Descargar Informe Completo (TXT)", f, file_name=st.session_state['informe_actual'])
+            else:
+                st.warning("El informe no contiene errores detectados o el formato no es compatible.")
