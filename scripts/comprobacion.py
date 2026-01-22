@@ -1,4 +1,4 @@
-# scripts/comprobacion.py
+# scripts/comprobacion.py  (SIN STREAMLIT, SIN FALLAR)
 import os
 import json
 import spacy
@@ -9,66 +9,43 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENTRADA_DIR = os.path.join(BASE_DIR, "entrada")
 SALIDA_DIR = os.path.join(BASE_DIR, "salida")
 
-def comprobar_archivo(nombre_archivo):
-    # Intentar cargar el modelo español
-    try:
-        nlp = spacy.load("es_core_news_sm")
-    except OSError:
-        # Si no está disponible, usar blank español como fallback
-        st.warning("⚠️ Usando tokenizador básico (modelo español no disponible)")
-        nlp = spacy.blank("es")
+nlp = spacy.load("es_core_news_sm", disable=["ner", "parser", "lemmatizer"])
 
-    ruta_excepciones = os.path.join(BASE_DIR, "data", "excepciones.json")
+def comprobar_archivo(nombre_archivo):
+    ruta = os.path.join(ENTRADA_DIR, nombre_archivo)
+    if not os.path.exists(ruta):
+        return None
+
     excepciones = {}
-    if os.path.exists(ruta_excepciones):
-        with open(ruta_excepciones, "r", encoding="utf-8") as f:
+    ruta_exc = os.path.join(BASE_DIR, "data", "excepciones.json")
+    if os.path.exists(ruta_exc):
+        with open(ruta_exc, "r", encoding="utf-8") as f:
             excepciones = json.load(f)
 
-    ruta_lectura = os.path.join(ENTRADA_DIR, nombre_archivo)
-    if not os.path.exists(ruta_lectura):
-        ruta_lectura = os.path.join(SALIDA_DIR, nombre_archivo)
-    if not os.path.exists(ruta_lectura):
-        return None
+    doc = Document(ruta)
+    textos = [p.text.strip() for p in doc.paragraphs if len(p.text.strip()) > 5]
 
-    nombre_txt = f"Informe_{nombre_archivo.replace('.docx', '.txt')}"
-    ruta_txt = os.path.join(SALIDA_DIR, nombre_txt)
+    salida = os.path.join(SALIDA_DIR, f"Informe_{nombre_archivo.replace('.docx','.txt')}")
+    hallazgos = []
 
-    try:
-        doc = Document(ruta_lectura)
-        textos = [p.text.strip() for p in doc.paragraphs if len(p.text.strip()) > 5]
+    for i, d in enumerate(nlp.pipe(textos)):
+        pid = f"ID_{i+1}"
+        original = textos[i]
+        fijo = aplicar_regex_editorial(original)
 
-        hallazgos = []
+        if original != fijo:
+            hallazgos.append(f"FORMATO | {pid} | {original[:40]} | {fijo[:40]} | Espacios")
 
-        for i, doc_spacy in enumerate(nlp.pipe(textos)):
-            pid = f"ID_{i+1}"
-            texto = textos[i]
-            fijo = aplicar_regex_editorial(texto)
+        for t in d:
+            w = t.text.lower()
+            if w in excepciones:
+                hallazgos.append(f"ORTOGRAFIA | {pid} | {t.text} | {excepciones[w]} | Diccionario")
 
-            if texto != fijo:
-                hallazgos.append(
-                    f"FORMATO | {pid} | {textos[i][:40]} | {fijo[:40]} | Espacios o signos"
-                )
+    with open(salida, "w", encoding="utf-8") as f:
+        if hallazgos:
+            for h in hallazgos:
+                f.write(h + "\n")
+        else:
+            f.write("FORMATO | ID_0 | Sin errores | - | OK\n")
 
-            # Si usamos blank, esta parte será menos efectiva
-            for token in doc_spacy:
-                palabra = token.text.lower()
-                if palabra in excepciones:
-                    hallazgos.append(
-                        f"ORTOGRAFIA | {pid} | {token.text} | {excepciones[palabra]} | Diccionario"
-                    )
-
-        with open(ruta_txt, "w", encoding="utf-8") as f:
-            if hallazgos:
-                for h in hallazgos:
-                    partes = [p.strip() for p in h.split("|")]
-                    while len(partes) < 5:
-                        partes.append("-")
-                    f.write(" | ".join(partes[:5]) + "\n")
-            else:
-                f.write("FORMATO | ID_0 | Sin errores | - | No se detectaron fallos\n")
-
-        return nombre_txt
-        
-    except Exception as e:
-        print(f"Error procesando el archivo: {e}")
-        return None
+    return os.path.basename(salida)
