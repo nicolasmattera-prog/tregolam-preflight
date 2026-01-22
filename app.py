@@ -1,66 +1,107 @@
-import streamlit as st
 import os
 import sys
-import pandas as pd
+import json
+from collections import Counter
+from docx import Document
+from openai import OpenAI
+from dotenv import load_dotenv
 
-st.set_page_config(page_title="Preflight® - Tregolam", page_icon="🔍", layout="wide")
+# -------------------------------------------------
+# IMPORTACIÓN DEL MOTOR DE REGLAS FÍSICAS
+# -------------------------------------------------
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+try:
+    from regex_rules1 import aplicar_regex_editorial
+except ImportError:
+    from regex_rules import aplicar_regex_editorial
 
-st.markdown("""
-    <style>
-    .block-container { max-width: 1000px; padding-top: 2rem; }
-    .stButton>button { width: 100%; font-weight: bold; border-radius: 8px; height: 3em; }
-    .header-box { background-color: #1E1E1E; padding: 20px; border-radius: 10px; color: white; text-align: center; margin-bottom: 2rem; }
-    </style>
-""", unsafe_allow_html=True)
+# -------------------------------------------------
+# CONFIGURACIÓN
+# -------------------------------------------------
+load_dotenv()
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-base_path = os.path.dirname(os.path.abspath(__file__))
-scripts_path = os.path.join(base_path, "scripts")
-sys.path.append(scripts_path)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ENTRADA_DIR = os.path.join(BASE_DIR, "entrada")
+SALIDA_DIR = os.path.join(BASE_DIR, "salida")
 
-import precorreccion
-import comprobacion
-from regex_rules import RULES
+# -------------------------------------------------
+# BLINDAJES EDITORIALES
+# -------------------------------------------------
+def texto_limpio(texto):
+    if not texto:
+        return ""
+    return aplicar_regex_editorial(texto)
 
-with st.sidebar:
-    logo = os.path.join(scripts_path, "isologo tregolma prefligth.png")
-    if os.path.exists(logo): st.image(logo, width=180)
-    st.divider()
-    st.success(f"Motor: {len(RULES)} reglas")
-    st.caption("v2.1 - Preflight® - Tregolam Literatura S.L.")
+def contiene_caracteres_especiales(texto):
+    especiales = ('«', '»', '„', '“', '”', '\u00A0', '\u202f')
+    return any(c in texto for c in especiales)
 
-st.markdown('<div class="header-box"><h1>🔍 Panel de Auditoría Ortotipográfica</h1></div>', unsafe_allow_html=True)
+# -------------------------------------------------
+# PROMPT IA (JSON ESTRICTO)
+# -------------------------------------------------
+PROMPT_AUDITORIA = """
+Actúa como un auditor editorial profesional.
 
-uploaded_file = st.file_uploader("Sube tu manuscrito (.docx)", type="docx")
+Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
 
-if uploaded_file:
-    # Guardar archivo en ENTRADA siempre que se suba
-    entrada_path = os.path.join(base_path, "entrada", uploaded_file.name)
-    os.makedirs(os.path.join(base_path, "entrada"), exist_ok=True)
-    os.makedirs(os.path.join(base_path, "salida"), exist_ok=True)
-    
-    with open(entrada_path, "wb") as f: f.write(uploaded_file.getbuffer())
+{
+  "estado": "OK" | "ERRORES",
+  "resultados": [
+    {
+      "categoria": "ORTOGRAFIA" | "FORMATO" | "SUGERENCIA",
+      "id": "ID_x",
+      "original": "texto original exacto",
+      "correccion": "texto corregido",
+      "motivo": "explicación breve"
+    }
+  ]
+}
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Corrección Ortotipográfica")
-        if st.button("✨ Ejecutar Corrección"):
-            with st.spinner("Procesando..."):
-                msg = precorreccion.ejecutar_precorreccion(uploaded_file.name)
-                st.success(msg)
-                
-    with col2:
-        st.subheader("Comprobación de erratas")
-        if st.button("🤖 Iniciar Auditoría IA"):
-            with st.spinner("Analizando con IA..."):
-                # Llamada segura al script corregido
-                nombre_inf = comprobacion.comprobar_archivo(uploaded_file.name)
-                st.session_state['informe'] = nombre_inf
-                st.rerun()
+REGLAS:
+- No inventes errores.
+- Si no hay cambios reales, devuelve estado "OK" y resultados [].
+- No modifiques comillas latinas ni espacios de no ruptura.
+- No devuelvas texto fuera del JSON.
+"""
 
-    if 'informe' in st.session_state:
-        st.divider()
-        if "ERROR" in st.session_state['informe']:
-            st.error(st.session_state['informe'])
-        else:
-            st.info(f"Informe listo: {st.session_state['informe']}")
-            # Aquí podrías añadir el st.download_button para el informe TXT
+# -------------------------------------------------
+# FUNCIÓN PRINCIPAL
+# -------------------------------------------------
+def comprobar_archivo(nombre_archivo):
+    ruta_lectura = os.path.join(SALIDA_DIR, nombre_archivo)
+    if not os.path.exists(ruta_lectura):
+        ruta_lectura = os.path.join(ENTRADA_DIR, nombre_archivo)
+
+    nombre_txt = f"Informe_{nombre_archivo.replace('.docx', '.txt')}"
+    ruta_txt = os.path.join(SALIDA_DIR, nombre_txt)
+
+    open(ruta_txt, "w", encoding="utf-8").close()
+
+    contador = Counter()
+
+    try:
+        doc = Document(ruta_lectura)
+        parrafos = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+
+        bloque = []
+        for i, texto in enumerate(parrafos):
+            bloque.append(f"ID_{i+1}: {texto}")
+
+            if len(bloque) >= 10:
+                respuesta = llamar_ia("\n".join(bloque))
+                procesar_respuesta(respuesta, ruta_txt, contador)
+                bloque = []
+
+        if bloque:
+            respuesta = llamar_ia("\n".join(bloque))
+            procesar_respuesta(respuesta, ruta_txt, contador)
+
+        # -------- RESUMEN FINAL --------
+        if contador:
+            with open(ruta_txt, "a", encoding="utf-8") as f:
+                f.write("\n\nRESUMEN GENERAL\n")
+                f.write("----------------\n")
+                f.write(f"TOTAL ERRORES: {sum(contador.values())}\n")
+                for cat, num in contador.items():
+                    f.write(f"{c
