@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import sys
 import pandas as pd
+import precorreccion
 
 # -------------------------------------------------
 # CONFIGURACIÓN DE PÁGINA
@@ -70,17 +71,37 @@ if uploaded:
 
     col1, col2 = st.columns(2)
 
-    # -------------------------------------------------
-    # PASO 2
-    # -------------------------------------------------
-    with col2:
-        st.subheader("Paso 2 · Auditoría IA")
-        if st.button("🤖 Ejecutar auditoría"):
-            with st.spinner("Analizando documento..."):
-                nombre_informe = comprobacion.comprobar_archivo(uploaded.name)
-                st.session_state.informe = nombre_informe
-                st.session_state.procesado = True
-            st.success("Auditoría completada")
+# -------------------------------------------------
+# PASO 1 · CORRECCIÓN
+# -------------------------------------------------
+with col1:
+    st.subheader("Corrección automática")
+    if st.button("✍️ Ejecutar corrección"):
+        with st.spinner("Aplicando motor editorial..."):
+            precorreccion.procesar_archivo(uploaded.name)
+        st.success("Corrección completada")
+
+        ruta_corregido = os.path.join(SALIDA_DIR, uploaded.name)
+        if os.path.exists(ruta_corregido):
+            with open(ruta_corregido, "rb") as f:
+                st.download_button(
+                    label="📥 Descargar DOCX corregido",
+                    data=f,
+                    file_name=f"CORREGIDO_{uploaded.name}",
+                    use_container_width=True
+                )
+
+# -------------------------------------------------
+# PASO 2 · AUDITORÍA
+# -------------------------------------------------
+with col2:
+    st.subheader("Auditoría IA")
+    if st.button("🤖 Ejecutar auditoría"):
+        with st.spinner("Analizando documento..."):
+            nombre_informe = comprobacion.comprobar_archivo(uploaded.name)
+            st.session_state.informe = nombre_informe
+            st.session_state.procesado = True
+        st.success("Auditoría completada")
 
 # -------------------------------------------------
 # VISUALIZACIÓN DE RESULTADOS
