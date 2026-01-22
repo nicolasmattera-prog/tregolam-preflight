@@ -12,19 +12,19 @@ SALIDA_DIR = os.path.join(BASE_DIR, "salida")
 
 def comprobar_archivo(nombre_archivo):
     """
-    Esta función es la que llama tu app.py. 
-    Cargamos spaCy AQUÍ ADENTRO para que el 'import' inicial no falle.
+    Función de auditoría compatible con app.py.
+    Carga el modelo internamente para evitar fallos de importación en el arranque.
     """
+    # 1. CARGA DEL MOTOR (Dentro de la función para no bloquear app.py)
     try:
-        # Intentamos cargar el modelo de español
-        # Usamos disable para que sea ultra rápido
+        # Intentamos cargar el modelo instalado vía requirements.txt
         nlp = spacy.load("es_core_news_sm", disable=["ner", "parser", "lemmatizer"])
     except OSError:
-        # Si no está instalado (pasa en el primer arranque), lo bajamos
+        # Fallback por si el servidor no lo registró a tiempo
         os.system("python -m spacy download es_core_news_sm")
         nlp = spacy.load("es_core_news_sm", disable=["ner", "parser", "lemmatizer"])
 
-    # 1. Cargar excepciones personales
+    # 2. CARGA DE EXCEPCIONES
     ruta_excepciones = os.path.join(BASE_DIR, "data", "excepciones.json")
     excepciones = {}
     if os.path.exists(ruta_excepciones):
@@ -34,7 +34,7 @@ def comprobar_archivo(nombre_archivo):
         except:
             excepciones = {}
 
-    # 2. Localizar archivo (Entrada o Salida)
+    # 3. LOCALIZAR ARCHIVO
     ruta_lectura = os.path.join(SALIDA_DIR, nombre_archivo)
     if not os.path.exists(ruta_lectura):
         ruta_lectura = os.path.join(ENTRADA_DIR, nombre_archivo)
@@ -45,43 +45,51 @@ def comprobar_archivo(nombre_archivo):
     nombre_txt = f"Informe_{nombre_archivo.replace('.docx', '.txt')}"
     ruta_txt = os.path.join(SALIDA_DIR, nombre_txt)
 
-    # 3. Procesamiento del documento
+    # 4. PROCESAMIENTO
     try:
         doc = Document(ruta_lectura)
-        # Solo párrafos con texto
         textos = [p.text.strip() for p in doc.paragraphs if len(p.text.strip()) > 5]
         hallazgos = []
 
-        # Procesamiento por lotes para no colgar el servidor
+        # Usamos nlp.pipe para procesar los párrafos de forma masiva
         for i, doc_spacy in enumerate(nlp.pipe(textos, batch_size=50)):
             texto_original = textos[i]
+            parrafo_id = f"ID_{i+1}"
 
-            # A. Comprobación de Formato (Regex)
-            if texto_original != aplicar_regex_editorial(texto_original):
-                # El formato de salida debe ser: CATEGORIA | ID | ORIGINAL | CORRECCION | MOTIVO
-                hallazgos.append(f"FORMATO | ID_{i+1} | {texto_original[:30]}... | {aplicar_regex_editorial(texto_original)[:30]}... | Error de espacios o símbolos")
+            # --- A. COMPROBACIÓN DE FORMATO (Regex) ---
+            texto_corregido = aplicar_regex_editorial(texto_original)
+            if texto_original != texto_corregido:
+                # Formato: CATEGORIA | ID | ORIGINAL | CORRECCION | MOTIVO
+                hallazgos.append(
+                    f"FORMATO | {parrafo_id} | {texto_original[:40]}... | {texto_corregido[:40]}... | Error de espaciado o símbolos"
+                )
 
-            # B. Comprobación de Ortografía (spaCy + Excepciones)
+            # --- B. COMPROBACIÓN DE ORTOGRAFÍA (Diccionario + Excepciones) ---
             for token in doc_spacy:
                 palabra_low = token.text.lower()
                 
-                # Si está en tus excepciones
+                # Prioridad 1: Diccionario de excepciones personal
                 if palabra_low in excepciones:
-                    hallazgos.append(f"ORTOGRAFIA | ID_{i+1} | {token.text} | {excepciones[palabra_low]} | Diccionario personal")
+                    hallazgos.append(
+                        f"ORTOGRAFIA | {parrafo_id} | {token.text} | {excepciones[palabra_low]} | Detectado por diccionario personal"
+                    )
                     continue
                 
-                # Si spaCy dice que no existe (is_oov) y no es un nombre propio/número
+                # Prioridad 2: Detección de errores (is_oov = Out of Vocabulary)
+                # Filtramos puntuación, números y nombres propios para evitar falsos positivos
                 if token.is_oov and not (token.is_punct or token.like_num or token.pos_ == "PROPN"):
-                    hallazgos.append(f"ORTOGRAFIA | ID_{i+1} | {token.text} | Revisar | Palabra no reconocida")
+                    hallazgos.append(
+                        f"ORTOGRAFIA | {parrafo_id} | {token.text} | Revisar | Palabra no reconocida por el motor"
+                    )
 
-        # 4. Guardar informe con el formato que tu app.py sabe leer
+        # 5. GUARDAR INFORME (Formato compatible con los filtros de app.py)
         with open(ruta_txt, "w", encoding="utf-8") as f:
             if hallazgos:
                 f.write("\n".join(hallazgos))
             else:
-                f.write("S_OK") # Para que tu app sepa que no hay errores
+                f.write("OK | ID_0 | Todo | Correcto | No se detectaron errores")
 
         return nombre_txt
-        
+
     except Exception as e:
-        return f"ERROR CRÍTICO | ID_0 | Error | Error | {str(e)}"
+        return f"ERROR | ID_0 | Sistema | Fallo | {str(e)}"
