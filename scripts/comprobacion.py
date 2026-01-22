@@ -9,20 +9,14 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENTRADA_DIR = os.path.join(BASE_DIR, "entrada")
 SALIDA_DIR = os.path.join(BASE_DIR, "salida")
 
-def cargar_nlp():
-    return spacy.blank("es")
-
 def comprobar_archivo(nombre_archivo):
-    nlp = cargar_nlp()
+    nlp = spacy.blank("es")
 
     ruta_excepciones = os.path.join(BASE_DIR, "data", "excepciones.json")
     excepciones = {}
     if os.path.exists(ruta_excepciones):
-        try:
-            with open(ruta_excepciones, "r", encoding="utf-8") as f:
-                excepciones = json.load(f)
-        except:
-            excepciones = {}
+        with open(ruta_excepciones, "r", encoding="utf-8") as f:
+            excepciones = json.load(f)
 
     ruta_lectura = os.path.join(SALIDA_DIR, nombre_archivo)
     if not os.path.exists(ruta_lectura):
@@ -38,14 +32,14 @@ def comprobar_archivo(nombre_archivo):
 
     hallazgos = []
 
-    for i, doc_spacy in enumerate(nlp.pipe(textos, batch_size=50)):
-        texto = textos[i]
+    for i, doc_spacy in enumerate(nlp.pipe(textos)):
         pid = f"ID_{i+1}"
+        texto = textos[i]
+        fijo = aplicar_regex_editorial(texto)
 
-        texto_fixed = aplicar_regex_editorial(texto)
-        if texto != texto_fixed:
+        if texto != fijo:
             hallazgos.append(
-                f"FORMATO | {pid} | {texto[:40]} | {texto_fixed[:40]} | Espacios o signos"
+                f"FORMATO | {pid} | {texto[:40]} | {fijo[:40]} | Espacios o signos"
             )
 
         for token in doc_spacy:
