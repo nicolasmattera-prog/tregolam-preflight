@@ -60,9 +60,7 @@ def comprobar_archivo(nombre_archivo):
                 )
                 continue
 
-            if token.is_oov and not (
-                token.is_punct or token.like_num
-            ):
+            if token.is_oov and not (token.is_punct or token.like_num):
                 hallazgos.append(
                     f"ORTOGRAFIA | Párrafo {i+1} | {token.text} | No reconocida"
                 )
