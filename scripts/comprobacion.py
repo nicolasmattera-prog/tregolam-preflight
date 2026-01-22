@@ -9,6 +9,7 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ENTRADA_DIR = os.path.join(BASE_DIR, "entrada")
 SALIDA_DIR = os.path.join(BASE_DIR, "salida")
 
 PROMPT_AUDITORIA = """Actúa como un auditor ortotipográfico implacable. Solo reporta errores reales.
@@ -18,7 +19,17 @@ REGLAS:
 2. No reportes nada si no hay un cambio real."""
 
 def comprobar_archivo(nombre_archivo):
+    # Intentar leer de salida (archivo corregido)
     ruta_lectura = os.path.join(SALIDA_DIR, nombre_archivo)
+    
+    # Si no existe en salida, leer de entrada (archivo original)
+    if not os.path.exists(ruta_lectura):
+        ruta_lectura = os.path.join(ENTRADA_DIR, nombre_archivo)
+    
+    # Si aún así no existe, devolver error claro
+    if not os.path.exists(ruta_lectura):
+        return f"ERROR: No se encuentra el archivo {nombre_archivo} en entrada ni en salida."
+
     nombre_txt = f"Informe_{nombre_archivo.replace('.docx', '.txt')}"
     ruta_txt = os.path.join(SALIDA_DIR, nombre_txt)
     
@@ -47,11 +58,9 @@ def procesar_y_guardar(respuesta, ruta_dest):
         partes = [p.strip() for p in linea.split("|")]
         if len(partes) == 5:
             orig, corr = partes[2], partes[3]
-            # FILTRO: ¿La regex ya soluciona lo que dice la IA?
             if aplicar_regex_editorial(orig) == aplicar_regex_editorial(corr): continue
-            # FILTRO: No permitir que la IA rompa caracteres especiales
-            if any(c in orig for c in ('«', '»', '\u00A0', '\u202f')) and not any(c in corr for c in ('«', '»', '\u00A0', '\u202f')): continue
-            
+            especiales = ('«', '»', '\u00A0', '\u202f')
+            if any(c in orig for c in especiales) and not any(c in corr for c in especiales): continue
             if orig != corr: lineas_limpias.append(" | ".join(partes))
     if lineas_limpias:
         with open(ruta_dest, "a", encoding="utf-8") as f: f.write("\n".join(lineas_limpias) + "\n")
