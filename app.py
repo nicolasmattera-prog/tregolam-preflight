@@ -28,12 +28,12 @@ if scripts_path not in sys.path:
 try:
     import precorreccion
     import comprobacion
-    # Intentamos importar del archivo correcto: regex_rules1
-    from regex_rules1 import RULES, aplicar_regex_editorial
+    # Intentamos importar del archivo correcto: regex_rules
+    from regex_rules import RULES, aplicar_regex_editorial
     categorias_activas = list(set([r[0] for r in RULES]))
 except ImportError as e:
     st.error(f"❌ Error de importación: {e}")
-    st.info("Asegúrate de que el archivo se llame 'regex_rules1.py' dentro de la carpeta 'scripts'.")
+    st.info("Asegúrate de que el archivo se llame 'regex_rules.py' dentro de la carpeta 'scripts'.")
     st.stop()
 
 entrada_dir = os.path.join(base_path, "entrada")
