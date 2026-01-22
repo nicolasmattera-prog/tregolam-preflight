@@ -71,13 +71,6 @@ if uploaded:
     col1, col2 = st.columns(2)
 
     # -------------------------------------------------
-    # PASO 1
-    # -------------------------------------------------
-    with col1:
-        st.subheader("Paso 1 · Precorrección")
-        st.success("Precorrección realizada previamente")
-
-    # -------------------------------------------------
     # PASO 2
     # -------------------------------------------------
     with col2:
