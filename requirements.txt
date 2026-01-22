@@ -1,6 +1,3 @@
-# requirements.txt (CORRECTO)
-spacy==3.7.0
-es-core-news-sm==3.7.0
 streamlit
 python-docx
 pandas
