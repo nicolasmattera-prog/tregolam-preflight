@@ -1,6 +1,7 @@
-spacy
+spacy>=3.0.0
 streamlit
 python-docx
 pandas
 python-dotenv
 openai
+es-core-news-sm
