@@ -1,5 +1,10 @@
-streamlit
-python-docx
+# Motor de lenguaje y modelo
+spacy==3.7.2
+https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.7.0/es_core_news_sm-3.7.0-py3-none-any.whl
+
+# Dependencias del sistema
 python-dotenv
 openai
-spacy
+streamlit
+pandas
+python-docx
