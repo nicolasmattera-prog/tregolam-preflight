@@ -1,46 +1,62 @@
 import os
+import re
+import sys
 from docx import Document
 from openai import OpenAI
 from dotenv import load_dotenv
+
+# Importamos tu motor de reglas físicas
+# Aseguramos la ruta para evitar errores de importación
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+try:
+    from regex_rules1 import aplicar_regex_editorial 
+except ImportError:
+    # Fallback por si el archivo tiene el nombre original sin el '1'
+    from regex_rules import aplicar_regex_editorial
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ENTRADA_DIR = os.path.join(BASE_DIR, "entrada")
 SALIDA_DIR = os.path.join(BASE_DIR, "salida")
 
-# PROMPT MEJORADO: Clasificación estricta y fin de falsos positivos
-PROMPT_AUDITORIA = """Actúa como un auditor ortotipográfico implacable. Solo reporta errores reales.
+# ---------- SOLUCIÓN AGUJEROS 1 Y 2: NORMALIZACIÓN TOTAL ----------
 
-CLASIFICACIÓN ESTRICTA:
-- ORTOGRAFIA: Solo para errores de escritura, acentos, concordancia o mayúsculas.
-- FORMATO: Rayas de diálogo, espacios, puntos finales, cifras.
-- SUGERENCIA: Estilo, cambios de palabras (ej. subjuntivos), léxico. 
+def texto_limpio(texto_crudo):
+    """Devuelve el texto normalizado tras pasar por el motor de reglas físicas."""
+    if not texto_crudo: return ""
+    # Aplicamos el motor de reglas que ya limpia NBSP y unifica comillas
+    return aplicar_regex_editorial(texto_crudo)
 
-REGLAS DE ORO (PROHIBICIONES):
-1. COMILLAS: Si el texto original YA TIENE comillas latinas « », es CORRECTO. NO lo reportes. Es un error grave reportar comillas que ya son latinas.
-2. SIN CAMBIO: Si no vas a proponer un cambio real en el texto, no reportes nada.
-3. ESTILO: Cualquier mejora de redacción que no sea una falta de ortografía DEBE ser CATEGORIA: SUGERENCIA.
+def contiene_caracteres_especiales(texto):
+    """Detecta comillas bajas, latinas, dobles o espacios de no ruptura."""
+    especiales = ('„', '“', '”', '«', '»', '\u00A0', '\u202f')
+    return any(c in texto for c in especiales)
 
-FORMATO: CATEGORIA | ID | ORIGINAL | CORRECCION | MOTIVO"""
+# ------------------------------------------------------------------
+
+PROMPT_AUDITORIA = """Actúa como un auditor editorial profesional.
+FORMATO OBLIGATORIO: CATEGORIA | ID | ORIGINAL | CORRECCION | MOTIVO
+REGLAS:
+1. Solo reporta errores de ORTOGRAFIA, FORMATO o SUGERENCIA.
+2. Si no hay cambios reales, no reportes nada.
+3. Si el texto ya es correcto, devuelve S_OK."""
 
 def comprobar_archivo(nombre_archivo):
-    ruta_lectura = os.path.join(ENTRADA_DIR, nombre_archivo)
+    ruta_lectura = os.path.join(SALIDA_DIR, nombre_archivo)
     nombre_txt = f"Informe_{nombre_archivo.replace('.docx', '.txt')}"
     ruta_txt = os.path.join(SALIDA_DIR, nombre_txt)
     
-    with open(ruta_txt, "w", encoding="utf-8") as f:
-        f.write("")
+    open(ruta_txt, "w", encoding="utf-8").close()
 
     try:
         doc = Document(ruta_lectura)
         parrafos = [p.text.strip() for p in doc.paragraphs if len(p.text.strip()) > 5]
+        
         bloque = []
-
         for i, texto in enumerate(parrafos):
             bloque.append(f"ID_{i+1}: {texto}")
-            if len(bloque) >= 8:
+            if len(bloque) >= 10:
                 respuesta = llamar_ia("\n".join(bloque))
                 procesar_y_guardar(respuesta, ruta_txt)
                 bloque = []
@@ -48,6 +64,7 @@ def comprobar_archivo(nombre_archivo):
         if bloque:
             respuesta = llamar_ia("\n".join(bloque))
             procesar_y_guardar(respuesta, ruta_txt)
+            
         return nombre_txt
     except Exception as e:
         return f"ERROR: {str(e)}"
@@ -55,18 +72,34 @@ def comprobar_archivo(nombre_archivo):
 def procesar_y_guardar(respuesta, ruta_dest):
     if not respuesta or "S_OK" in respuesta.upper():
         return
+        
     lineas_ia = respuesta.split("\n")
-    lineas_limpias = []
+    lineas_validadas = []
+    
     for linea in lineas_ia:
-        linea = linea.strip()
-        if linea.count("|") == 4:
-            partes = [p.strip() for p in linea.split("|")]
-            # Filtrado extra: si la IA reporta algo como igual, lo descartamos aquí también
-            if "CATEGORIA" not in partes[0].upper() and partes[2] != partes[3]:
-                lineas_limpias.append(" | ".join(partes))
-    if lineas_limpias:
+        # AGUJERO 3: Validación estricta de formato tabular
+        partes = [p.strip() for p in linea.split("|")]
+        
+        if len(partes) == 5 and all(partes):
+            original = partes[2]
+            sugerencia = partes[3]
+            
+            # AGUJERO 1: Comparación tras limpieza real
+            if texto_limpio(original) == texto_limpio(sugerencia):
+                continue
+                
+            # AGUJERO 2: Blindaje de caracteres especiales (NBSP y Comillas)
+            if contiene_caracteres_especiales(original) and not contiene_caracteres_especiales(sugerencia):
+                # Si la IA intenta "limpiar" nuestros caracteres especiales, la ignoramos
+                continue
+
+            # Validación final de cambio real
+            if original != sugerencia:
+                lineas_validadas.append(" | ".join(partes))
+                
+    if lineas_validadas:
         with open(ruta_dest, "a", encoding="utf-8") as f:
-            f.write("\n".join(lineas_limpias) + "\n")
+            f.write("\n".join(lineas_validadas) + "\n")
 
 def llamar_ia(texto_bloque):
     try:
@@ -76,7 +109,7 @@ def llamar_ia(texto_bloque):
                 {"role": "system", "content": PROMPT_AUDITORIA},
                 {"role": "user", "content": texto_bloque}
             ],
-            temperature=0 # Temperatura 0 para máxima precisión
+            temperature=0
         )
         return res.choices[0].message.content.strip()
     except:
