@@ -4,14 +4,6 @@ import sys
 import pandas as pd
 import streamlit as st
 
-try:
-    import spacy
-    spacy.load("es_core_news_sm")
-    modelo_disponible = True
-except:
-    modelo_disponible = False
-    st.warning("⚠️ Modelo de español no disponible. Usando tokenizador básico.")
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS_DIR = os.path.join(BASE_DIR, "scripts")
 ENTRADA_DIR = os.path.join(BASE_DIR, "entrada")
@@ -23,11 +15,21 @@ os.makedirs(SALIDA_DIR, exist_ok=True)
 if SCRIPTS_DIR not in sys.path:
     sys.path.append(SCRIPTS_DIR)
 
+# Configurar página PRIMERO
+st.set_page_config(page_title="Preflight® - Tregolam", page_icon="🔍", layout="wide")
+
+# Luego verificar el modelo
+try:
+    import spacy
+    spacy.load("es_core_news_sm")
+    modelo_disponible = True
+except:
+    modelo_disponible = False
+    st.warning("⚠️ Modelo de español no disponible. Usando tokenizador básico.")
+
 import comprobacion
 import precorreccion
 from regex_rules import RULES
-
-st.set_page_config(page_title="Preflight® - Tregolam", page_icon="🔍", layout="wide")
 
 st.markdown("""
 <style>
