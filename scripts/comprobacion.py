@@ -11,10 +11,13 @@ SALIDA_DIR = os.path.join(BASE_DIR, "salida")
 
 @st.cache_resource
 def cargar_nlp():
-    return spacy.load(
-        "es_core_news_sm",
-        disable=["ner", "parser", "lemmatizer"]
-    )
+    try:
+        return spacy.load(
+            "es_core_news_sm",
+            disable=["ner", "parser", "lemmatizer"]
+        )
+    except Exception:
+        return spacy.blank("es")
 
 def comprobar_archivo(nombre_archivo):
     nlp = cargar_nlp()
@@ -58,7 +61,7 @@ def comprobar_archivo(nombre_archivo):
                 continue
 
             if token.is_oov and not (
-                token.is_punct or token.like_num or token.pos_ == "PROPN"
+                token.is_punct or token.like_num
             ):
                 hallazgos.append(
                     f"ORTOGRAFIA | Párrafo {i+1} | {token.text} | No reconocida"
