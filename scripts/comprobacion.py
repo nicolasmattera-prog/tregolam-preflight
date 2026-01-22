@@ -11,13 +11,7 @@ SALIDA_DIR = os.path.join(BASE_DIR, "salida")
 
 @st.cache_resource
 def cargar_nlp():
-    try:
-        return spacy.load(
-            "es_core_news_sm",
-            disable=["ner", "parser", "lemmatizer"]
-        )
-    except Exception:
-        return spacy.blank("es")
+    return spacy.blank("es")
 
 def comprobar_archivo(nombre_archivo):
     nlp = cargar_nlp()
@@ -42,28 +36,26 @@ def comprobar_archivo(nombre_archivo):
     ruta_txt = os.path.join(SALIDA_DIR, nombre_txt)
 
     doc = Document(ruta_lectura)
-    textos_parrafos = [p.text.strip() for p in doc.paragraphs if len(p.text.strip()) > 5]
+    textos = [p.text.strip() for p in doc.paragraphs if len(p.text.strip()) > 5]
     hallazgos = []
 
-    for i, doc_spacy in enumerate(nlp.pipe(textos_parrafos, batch_size=50)):
-        texto_original = textos_parrafos[i]
+    for i, doc_spacy in enumerate(nlp.pipe(textos, batch_size=50)):
+        texto_original = textos[i]
 
         if texto_original != aplicar_regex_editorial(texto_original):
             hallazgos.append(f"FORMATO | Párrafo {i+1} | Error técnico o de espacios")
 
         for token in doc_spacy:
-            palabra_low = token.text.lower()
+            palabra = token.text.lower()
 
-            if palabra_low in excepciones:
+            if palabra in excepciones:
                 hallazgos.append(
-                    f"ORTOGRAFIA | Párrafo {i+1} | {token.text} | {excepciones[palabra_low]}"
+                    f"ORTOGRAFIA | Párrafo {i+1} | {token.text} | {excepciones[palabra]}"
                 )
                 continue
 
-            if token.is_oov and not (token.is_punct or token.like_num):
-                hallazgos.append(
-                    f"ORTOGRAFIA | Párrafo {i+1} | {token.text} | No reconocida"
-                )
+            if token.is_alpha and palabra not in excepciones:
+                pass  # aquí puedes añadir lógica futura
 
     with open(ruta_txt, "w", encoding="utf-8") as f:
         f.write(f"INFORME DE AUDITORÍA: {len(hallazgos)} avisos encontrados.\n")
