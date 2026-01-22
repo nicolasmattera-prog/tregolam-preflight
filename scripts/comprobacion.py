@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 # -------------------------------------------------
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
-    from regex_rules1 import aplicar_regex_editorial
+    from regex_rules import aplicar_regex_editorial
 except ImportError:
     from regex_rules import aplicar_regex_editorial
 
@@ -176,3 +176,4 @@ def llamar_ia(texto_bloque):
 
     except Exception as e:
         return f"ERROR_IA | {str(e)}"
+
