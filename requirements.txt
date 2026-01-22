@@ -1,8 +1,6 @@
-spacy==3.7.0
-es-core-news-sm==3.7.0
-
+spacy
+streamlit
+python-docx
+pandas
 python-dotenv
 openai
-streamlit
-pandas
-python-docx
