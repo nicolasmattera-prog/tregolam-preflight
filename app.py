@@ -4,6 +4,14 @@ import sys
 import pandas as pd
 import streamlit as st
 
+try:
+    import spacy
+    spacy.load("es_core_news_sm")
+    modelo_disponible = True
+except:
+    modelo_disponible = False
+    st.warning("⚠️ Modelo de español no disponible. Usando tokenizador básico.")
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS_DIR = os.path.join(BASE_DIR, "scripts")
 ENTRADA_DIR = os.path.join(BASE_DIR, "entrada")
