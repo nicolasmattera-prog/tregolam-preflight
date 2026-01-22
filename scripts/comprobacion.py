@@ -1,4 +1,3 @@
-# scripts/comprobacion.py  (SIN STREAMLIT, SIN FALLAR)
 import os
 import json
 import spacy
@@ -25,7 +24,11 @@ def comprobar_archivo(nombre_archivo):
     doc = Document(ruta)
     textos = [p.text.strip() for p in doc.paragraphs if len(p.text.strip()) > 5]
 
-    salida = os.path.join(SALIDA_DIR, f"Informe_{nombre_archivo.replace('.docx','.txt')}")
+    salida = os.path.join(
+        SALIDA_DIR,
+        f"Informe_{nombre_archivo.replace('.docx', '.txt')}"
+    )
+
     hallazgos = []
 
     for i, d in enumerate(nlp.pipe(textos)):
@@ -34,12 +37,16 @@ def comprobar_archivo(nombre_archivo):
         fijo = aplicar_regex_editorial(original)
 
         if original != fijo:
-            hallazgos.append(f"FORMATO | {pid} | {original[:40]} | {fijo[:40]} | Espacios")
+            hallazgos.append(
+                f"FORMATO | {pid} | {original[:40]} | {fijo[:40]} | Espacios o signos"
+            )
 
         for t in d:
             w = t.text.lower()
             if w in excepciones:
-                hallazgos.append(f"ORTOGRAFIA | {pid} | {t.text} | {excepciones[w]} | Diccionario")
+                hallazgos.append(
+                    f"ORTOGRAFIA | {pid} | {t.text} | {excepciones[w]} | Diccionario"
+                )
 
     with open(salida, "w", encoding="utf-8") as f:
         if hallazgos:
