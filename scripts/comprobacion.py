@@ -10,13 +10,13 @@ ENTRADA_DIR = os.path.join(BASE_DIR, "entrada")
 SALIDA_DIR = os.path.join(BASE_DIR, "salida")
 
 def comprobar_archivo(nombre_archivo):
-    # Cargar el modelo español completo en lugar de blank
+    # Intentar cargar el modelo español
     try:
         nlp = spacy.load("es_core_news_sm")
     except OSError:
-        print("Error: No se encontró el modelo es_core_news_sm")
-        print("Por favor ejecuta: python -m spacy download es_core_news_sm")
-        return None
+        # Si no está disponible, usar blank español como fallback
+        st.warning("⚠️ Usando tokenizador básico (modelo español no disponible)")
+        nlp = spacy.blank("es")
 
     ruta_excepciones = os.path.join(BASE_DIR, "data", "excepciones.json")
     excepciones = {}
@@ -24,12 +24,10 @@ def comprobar_archivo(nombre_archivo):
         with open(ruta_excepciones, "r", encoding="utf-8") as f:
             excepciones = json.load(f)
 
-    # Buscar primero en entrada, luego en salida
     ruta_lectura = os.path.join(ENTRADA_DIR, nombre_archivo)
     if not os.path.exists(ruta_lectura):
         ruta_lectura = os.path.join(SALIDA_DIR, nombre_archivo)
     if not os.path.exists(ruta_lectura):
-        print(f"Error: No se encontró el archivo {nombre_archivo}")
         return None
 
     nombre_txt = f"Informe_{nombre_archivo.replace('.docx', '.txt')}"
@@ -48,9 +46,10 @@ def comprobar_archivo(nombre_archivo):
 
             if texto != fijo:
                 hallazgos.append(
-                    f"FORMATO | {pid} | {texto[:40]} | {fijo[:40]} | Espacios o signos"
+                    f"FORMATO | {pid} | {textos[i][:40]} | {fijo[:40]} | Espacios o signos"
                 )
 
+            # Si usamos blank, esta parte será menos efectiva
             for token in doc_spacy:
                 palabra = token.text.lower()
                 if palabra in excepciones:
