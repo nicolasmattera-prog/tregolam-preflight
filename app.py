@@ -1,68 +1,106 @@
-# scripts/comprobacion.py
+# app.py
 import os
-import json
-import spacy
-from docx import Document
-from regex_rules import aplicar_regex_editorial
+import sys
+import pandas as pd
+import streamlit as st
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPTS_DIR = os.path.join(BASE_DIR, "scripts")
 ENTRADA_DIR = os.path.join(BASE_DIR, "entrada")
 SALIDA_DIR = os.path.join(BASE_DIR, "salida")
 
-def cargar_nlp():
-    return spacy.blank("es")
+os.makedirs(ENTRADA_DIR, exist_ok=True)
+os.makedirs(SALIDA_DIR, exist_ok=True)
 
-def comprobar_archivo(nombre_archivo):
-    nlp = cargar_nlp()
+if SCRIPTS_DIR not in sys.path:
+    sys.path.append(SCRIPTS_DIR)
 
-    ruta_excepciones = os.path.join(BASE_DIR, "data", "excepciones.json")
-    excepciones = {}
-    if os.path.exists(ruta_excepciones):
-        try:
-            with open(ruta_excepciones, "r", encoding="utf-8") as f:
-                excepciones = json.load(f)
-        except:
-            excepciones = {}
+import comprobacion
+import precorreccion
+from regex_rules import RULES
 
-    ruta_lectura = os.path.join(SALIDA_DIR, nombre_archivo)
-    if not os.path.exists(ruta_lectura):
-        ruta_lectura = os.path.join(ENTRADA_DIR, nombre_archivo)
-    if not os.path.exists(ruta_lectura):
-        return None
+st.set_page_config(page_title="Preflight® - Tregolam", page_icon="🔍", layout="wide")
 
-    nombre_txt = f"Informe_{nombre_archivo.replace('.docx', '.txt')}"
-    ruta_txt = os.path.join(SALIDA_DIR, nombre_txt)
+st.markdown("""
+<style>
+.block-container { max-width: 1100px; padding-top: 2rem; }
+.stButton>button { width: 100%; font-weight: bold; border-radius: 8px; height: 3.5em; }
+.header-box { background:#1E1E1E; padding:25px; border-radius:12px; color:#fff; text-align:center; margin-bottom:2rem; }
+</style>
+""", unsafe_allow_html=True)
 
-    doc = Document(ruta_lectura)
-    textos = [p.text.strip() for p in doc.paragraphs if len(p.text.strip()) > 5]
+if "informe" not in st.session_state:
+    st.session_state.informe = None
+if "procesado" not in st.session_state:
+    st.session_state.procesado = False
 
-    hallazgos = []
+with st.sidebar:
+    st.success(f"✅ Motor: {len(RULES)} reglas")
+    st.caption("v2.1 - Preflight® - Tregolam Literatura S.L.")
 
-    for i, doc_spacy in enumerate(nlp.pipe(textos, batch_size=50)):
-        texto = textos[i]
-        pid = f"ID_{i+1}"
+st.markdown('<div class="header-box"><h1>🔍 Panel de Auditoría Editorial</h1></div>', unsafe_allow_html=True)
 
-        texto_fixed = aplicar_regex_editorial(texto)
-        if texto != texto_fixed:
-            hallazgos.append(
-                f"FORMATO | {pid} | {texto[:40]} | {texto_fixed[:40]} | Espacios o signos"
-            )
+uploaded = st.file_uploader("Sube tu manuscrito (.docx)", type="docx")
 
-        for token in doc_spacy:
-            palabra = token.text.lower()
-            if palabra in excepciones:
-                hallazgos.append(
-                    f"ORTOGRAFIA | {pid} | {token.text} | {excepciones[palabra]} | Diccionario"
-                )
+if uploaded:
+    ruta_entrada = os.path.join(ENTRADA_DIR, uploaded.name)
+    with open(ruta_entrada, "wb") as f:
+        f.write(uploaded.getbuffer())
 
-    with open(ruta_txt, "w", encoding="utf-8") as f:
-        if hallazgos:
-            for h in hallazgos:
-                partes = [p.strip() for p in h.split("|")]
-                while len(partes) < 5:
-                    partes.append("-")
-                f.write(" | ".join(partes[:5]) + "\n")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Corrección Ortotipográfica")
+        if st.button("✨ Ejecutar corrección"):
+            precorreccion.procesar_archivo(uploaded.name)
+            st.success("Corrección completada")
+
+    with col2:
+        st.subheader("Comprobación de erratas")
+        if st.button("🤖 Iniciar Auditoría IA"):
+            st.session_state.informe = comprobacion.comprobar_archivo(uploaded.name)
+            st.session_state.procesado = True
+            st.success("Auditoría completada")
+
+if st.session_state.procesado and st.session_state.informe:
+    ruta_informe = os.path.join(SALIDA_DIR, st.session_state.informe)
+
+    if os.path.exists(ruta_informe):
+        datos = []
+        with open(ruta_informe, "r", encoding="utf-8") as f:
+            for linea in f:
+                partes = [p.strip() for p in linea.split("|")]
+                if len(partes) >= 5:
+                    datos.append({
+                        "Categoría": partes[0],
+                        "ID": partes[1],
+                        "Original": partes[2],
+                        "Corrección": partes[3],
+                        "Motivo": partes[4],
+                    })
+
+        st.divider()
+        st.subheader("📋 Resultados del Análisis")
+
+        if datos:
+            df = pd.DataFrame(datos)
+            t1, t2, t3 = st.tabs(["🔴 Ortografía", "🟡 Formato", "🟢 Sugerencias"])
+
+            with t1:
+                st.dataframe(df[df["Categoría"].str.contains("ORTOGRAFIA", na=False)],
+                             use_container_width=True, hide_index=True)
+            with t2:
+                st.dataframe(df[df["Categoría"].str.contains("FORMATO", na=False)],
+                             use_container_width=True, hide_index=True)
+            with t3:
+                st.dataframe(df[df["Categoría"].str.contains("SUGERENCIA", na=False)],
+                             use_container_width=True, hide_index=True)
         else:
-            f.write("FORMATO | ID_0 | Sin errores | - | No se detectaron fallos\n")
+            st.warning("El informe se generó sin filas estructuradas.")
 
-    return nombre_txt
+        with open(ruta_informe, "rb") as f:
+            st.download_button(
+                "📥 Descargar informe (.txt)",
+                data=f,
+                file_name=st.session_state.informe
+            )
