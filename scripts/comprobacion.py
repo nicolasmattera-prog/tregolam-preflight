@@ -12,11 +12,36 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENTRADA_DIR = os.path.join(BASE_DIR, "entrada")
 SALIDA_DIR = os.path.join(BASE_DIR, "salida")
 
-PROMPT_AUDITORIA = """Actúa como un auditor ortotipográfico implacable. Solo reporta errores reales.
-FORMATO: CATEGORIA | ID | ORIGINAL | CORRECCION | MOTIVO
+PROMPT_AUDITORIA = """Actúa como un auditor editorial profesional.
+Clasifica CADA hallazgo en UNA sola categoría siguiendo estas reglas estrictas:
+
+ORTOGRAFIA:
+- Errores de escritura de palabras
+- Tildes incorrectas o ausentes
+- Letras incorrectas
+
+FORMATO:
+- Espacios dobles o mal colocados
+- Espacios antes de signos de puntuación
+- Uso incorrecto de comillas, rayas, paréntesis
+- Mayúsculas indebidas por norma tipográfica
+- Signos de puntuación mal usados
+
+SUGERENCIA:
+- Mejoras de estilo
+- Reescrituras no obligatorias
+- Alternativas más claras o naturales
+- Cambios que NO son errores normativos
+
+FORMATO DE SALIDA (obligatorio):
+CATEGORIA | ID | ORIGINAL | CORRECCION | MOTIVO
+
 REGLAS:
-1. Si el texto original ya tiene comillas latinas « », es CORRECTO.
-2. No reportes nada si no hay un cambio real."""
+- Usa FORMATO siempre que el problema sea tipográfico o de espacios.
+- Usa SUGERENCIA solo si no es un error obligatorio.
+- No inventes errores.
+- Si no hay cambios reales, no devuelvas nada.
+- No devuelvas texto fuera del formato indicado."""
 
 def comprobar_archivo(nombre_archivo):
     # Intentar leer de salida (archivo corregido)
@@ -74,3 +99,4 @@ def llamar_ia(texto):
         )
         return res.choices[0].message.content.strip()
     except: return "S_OK"
+
