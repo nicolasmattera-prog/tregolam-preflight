@@ -71,6 +71,62 @@ def aplicar_regex_editorial(texto):
             print(f"Error aplicando {nombre_regla}: {e}")
 
     return texto
+    
+# ---------- CONFIGURACIÓN ----------
+load_dotenv()
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+MODEL_MINI = "gpt-4o-mini"
+
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
+OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+# ---------- PROMPTS ULTRA-ESTRICTOS (ÍNTEGROS) ----------
+PROMPT_F1 = """
+Eres un CORRECTOR ORTOGRÁFICO Y TIPOGRÁFICO de texto ya existente.  
+Tu única tarea es aplicar, SIN EXCEPCIONES, las reglas que se listan a continuación:
+
+1. Diálogos: Raya de apertura (—) pegada al texto. Raya de inciso pegada al texto (—dijo Rubén). Puntuación siempre después de la raya de cierre: —dijo—.
+2. Mayúsculas: Corrige capitalización sin tocar siglas ni acrónimos.
+3. Ortografía: Tildes, diéresis, v/b, haches y concordancia simple.
+4. Signos: Quita repeticiones (,, !!, ??).
+5. VOCATIVO: Coma obligatoria (ej: «Marta, cierra la puerta»).
+6. ESPACIOS APERTURA: UN espacio entre la palabra anterior y el signo de apertura (¿, ¡, «).
+7. PEGOTES: UN espacio después de punto, coma, etc. Separa «autenticidad.Los» -> «autenticidad. Los».
+8. GRAMÁTICA: Corrige "si + habría" por "si + hubiera/hubiese".
+
+RESTRICCIONES: No cambies palabras correctas, no añadas frases, no pongas comentarios.
+"""
+
+PROMPT_F2 = """Eres editor literario. Mejora la agilidad verbal:
+1. GERUNDIOS DE POSTERIORIDAD: 'terminó, generando' -> 'terminó y generó'.
+2. VOZ PASIVA: Cámbiala a activa REORDENANDO la frase.
+3. ESTRUCTURAS PESADAS: Mejora el flujo natural.
+4. LIMPIEZA LINGÜÍSTICA: Corrige queísmo/dequeísmo y concordancia de colectivos.
+
+REGLA DE ORO: Respeta escrupulosamente los espacios en cifras y comillas de la fase anterior.
+RESTRICCIÓN ABSOLUTA:
+- No añadas ninguna raya (—) que no exista en el texto original.
+- Si el texto original no es un diálogo, no pongas rayas.
+- Si incumples esto, el cambio se rechaza."""
+
+# ---------- MOTOR DE REGEX (ÍNTEGRO) ----------
+
+def aplicar_regex_editorial(texto):
+    if not texto:
+        return ""
+
+    texto = texto.replace('\\xa0', ' ').replace('\\u202f', ' ')
+    texto = texto.replace('\xa0', ' ').replace('\u202f', ' ')
+
+    for _, patron, reemplazo in RULES:
+        try:
+            texto = patron.sub(reemplazo, texto)
+        except Exception as e:
+            print(f"Error aplicando {nombre_regla}: {e}")
+
+    return texto
 
 
 # ---------- FUNCIONES TÉCNICAS (ÍNTEGRAS) ----------
@@ -177,4 +233,5 @@ if __name__ == "__main__":
                 procesar_archivo(a)
             except Exception as e:
                 print(f"❌ Error en {a}: {e}")
+
 
