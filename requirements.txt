@@ -5,3 +5,4 @@ openai
 python-dotenv
 streamlit
 spacy
+es-core-news-sm
