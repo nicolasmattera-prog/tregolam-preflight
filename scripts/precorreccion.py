@@ -51,17 +51,20 @@ RESTRICCIÓN ABSOLUTA:
 # ---------- MOTOR DE REGEX (ÍNTEGRO) ----------
 
 def aplicar_regex_editorial(texto):
-    if not texto: return ""
-    # Mantener el manejo de caracteres especiales de tu archivo original
+    if not texto:
+        return ""
+
     texto = texto.replace('\\xa0', ' ').replace('\\u202f', ' ')
     texto = texto.replace('\xa0', ' ').replace('\u202f', ' ')
-    
-    for nombre_regla, patron, reemplazo in RULES:
+
+    for patron, reemplazo, nombre_regla in RULES:
         try:
             texto = patron.sub(reemplazo, texto)
         except Exception as e:
             print(f"Error aplicando {nombre_regla}: {e}")
+
     return texto
+
 
 # ---------- FUNCIONES TÉCNICAS (ÍNTEGRAS) ----------
 
