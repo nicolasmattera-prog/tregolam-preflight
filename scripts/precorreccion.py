@@ -5,7 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI
 from dotenv import load_dotenv
 
-# IMPORTANTE: Asegúrate de que regex_rules.py esté en la misma carpeta
+# INTEGRACIÓN CON EL VALIDADOR APROBADO
+from validador import corregir_bloque_con_seguridad
 from regex_rules import RULES 
 
 # ---------- CONFIGURACIÓN ----------
@@ -18,7 +19,7 @@ INPUT_FOLDER = os.path.join(BASE_DIR, "entrada")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "salida")
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# ---------- PROMPTS ULTRA-ESTRICTOS ----------
+# ---------- PROMPTS ULTRA-ESTRICTOS (ÍNTEGROS) ----------
 PROMPT_F1 = """
 Eres un CORRECTOR ORTOGRÁFICO Y TIPOGRÁFICO de texto ya existente.  
 Tu única tarea es aplicar, SIN EXCEPCIONES, las reglas que se listan a continuación:
@@ -47,26 +48,22 @@ RESTRICCIÓN ABSOLUTA:
 - Si el texto original no es un diálogo, no pongas rayas.
 - Si incumples esto, el cambio se rechaza."""
 
-# ---------- MOTOR DE REGEX (EL PUENTE) ----------
+# ---------- MOTOR DE REGEX (ÍNTEGRO) ----------
 
 def aplicar_regex_editorial(texto):
     if not texto: return ""
-    
-    # Usamos dobles barras para evitar el error "bad escape \u"
+    # Mantener el manejo de caracteres especiales de tu archivo original
     texto = texto.replace('\\xa0', ' ').replace('\\u202f', ' ')
-    # O mejor aún, usamos los caracteres directamente si el archivo es UTF-8:
     texto = texto.replace('\xa0', ' ').replace('\u202f', ' ')
     
     for nombre_regla, patron, reemplazo in RULES:
         try:
             texto = patron.sub(reemplazo, texto)
         except Exception as e:
-            # Esto te dirá qué regla específica está fallando si ocurre de nuevo
             print(f"Error aplicando {nombre_regla}: {e}")
-            
     return texto
 
-# ---------- FUNCIONES TÉCNICAS ----------
+# ---------- FUNCIONES TÉCNICAS (ÍNTEGRAS) ----------
 
 def _tokenize(txt):
     return re.findall(r'(\S+)([ \t\u00A0\r\n]*)', txt, re.UNICODE)
@@ -94,52 +91,9 @@ def eliminar_inserciones_largas(original, corregido, max_palabras=3):
             out.append(pal + esp)
     return ''.join(out)
 
-# ---------- PROCESAMIENTO POR BLOQUES ----------
+# ---------- MAPPING Y GUARDADO (CON LÓGICA DE COLOR EXPLÍCITA) ----------
 
-def corregir_bloque(texto):
-    if not texto.strip(): return texto
-    try:
-        # FASE 1: Ortutotipografía
-        res1 = client.chat.completions.create(
-            model=MODEL_MINI,
-            messages=[{"role": "system", "content": PROMPT_F1}, {"role": "user", "content": texto}],
-            temperature=0
-        )
-        r = limpieza_residuos_chat(res1.choices[0].message.content.strip())
-        
-        # Pasada Regex 1: Formatea números, monedas y comillas tras la IA
-        r = aplicar_regex_editorial(r)
-        r = eliminar_inserciones_largas(texto, r, max_palabras=3)
-
-        # FASE 2: Estilo (Solo si es necesario o texto largo)
-        t_lower = r.lower()
-        if any(re.search(p, t_lower) for p in [r"ando\b", r"endo\b", r"\bfue\b", r"\bfueron\b"]) or len(r.split()) > 15:
-            res2 = client.chat.completions.create(
-                model=MODEL_MINI,
-                messages=[{"role": "system", "content": PROMPT_F2}, {"role": "user", "content": r}],
-                temperature=0 
-            )
-            r2 = limpieza_residuos_chat(res2.choices[0].message.content.strip())
-            
-            # Pasada Regex 2: Limpia posibles errores de estilo (rayas inventadas, etc.)
-            r2 = aplicar_regex_editorial(r2)
-            
-            margen = 5 if re.search(r'\b(fue|fueron|será|serán|es|son)\b.+\bpor\b', r, re.I) else 4
-            r2_filtrado = eliminar_inserciones_largas(r, r2, max_palabras=margen)
-            
-            if 0.75 <= len(r2_filtrado) / (len(r) + 1) <= 1.3:
-                r = r2_filtrado
-        
-        # Pasada Final de Seguridad
-        return aplicar_regex_editorial(r)
-
-    except Exception as e:
-        print(f" Error en bloque: {e}")
-        return texto
-
-# ---------- MAPPING Y GUARDADO ----------
-
-def aplicar_cambios_quirurgicos(parrafo, original, corregido):
+def aplicar_cambios_quirurgicos(parrafo, original, corregido, score):
     if original.strip() == corregido.strip(): return
     era_cursiva = any(run.italic for run in parrafo.runs)
     for run in parrafo.runs: run.text = ""
@@ -156,15 +110,27 @@ def aplicar_cambios_quirurgicos(parrafo, original, corregido):
         
         run = parrafo.add_run(segmento)
         run.font.name = 'Garamond'
-        run.font.size = parrafo.runs[0].font.size if parrafo.runs else None
+        # Intentar mantener el tamaño original
+        try:
+            run.font.size = parrafo.runs[0].font.size if parrafo.runs else None
+        except:
+            pass
         run.italic = era_cursiva
         
-        if tag == 'replace': run.font.color.rgb = RGBColor(0, 0, 180) # Azul
-        elif tag == 'insert': run.font.color.rgb = RGBColor(180, 0, 0) # Rojo
-        else: run.font.color.rgb = RGBColor(0, 0, 0) # Negro
+        # LÓGICA DE COLORES MEJORADA (MÁS EXPLÍCITA)
+        if tag in ('replace', 'insert'):
+            if score < 90: 
+                run.font.color.rgb = RGBColor(255, 165, 0)  # Naranja (Dudoso)
+            else:  # score >= 90
+                if tag == 'replace':
+                    run.font.color.rgb = RGBColor(0, 0, 180)  # Azul (Seguro)
+                else:  # insert
+                    run.font.color.rgb = RGBColor(180, 0, 0)  # Rojo (Seguro)
+        else:
+            run.font.color.rgb = RGBColor(0, 0, 0) # Negro (Sin cambios)
 
 def procesar_archivo(name):
-    print(f"🚀 Iniciando corrección: {name}")
+    print(f"🚀 Iniciando corrección modular: {name}")
     doc = Document(os.path.join(INPUT_FOLDER, name))
     
     # Recopilar párrafos y tablas
@@ -177,19 +143,27 @@ def procesar_archivo(name):
 
     textos_orig = [p.text for p in objetivos]
     
-    # Procesamiento paralelo para velocidad
+    # Procesamiento paralelo llamando al validador aprobado
     with ThreadPoolExecutor(max_workers=8) as exe:
-        resultados = list(exe.map(corregir_bloque, textos_orig))
+        # Se envían los prompts y la función regex para asegurar consistencia
+        resultados_tuplas = list(exe.map(
+            lambda t: corregir_bloque_con_seguridad(t, PROMPT_F1, PROMPT_F2, aplicar_regex_editorial), 
+            textos_orig
+        ))
 
-    for p, orig, corr in zip(objetivos, textos_orig, resultados):
-        aplicar_cambios_quirurgicos(p, orig, corr)
+    for p, orig, (corr, score) in zip(objetivos, textos_orig, resultados_tuplas):
+        aplicar_cambios_quirurgicos(p, orig, corr, score)
 
     doc.save(os.path.join(OUTPUT_FOLDER, name))
-    print(f"✅ Archivo guardado en 'salida/{name}'")
+    print(f"✅ Archivo guardado con éxito: {name}")
 
 if __name__ == "__main__":
     archivos = [f for f in os.listdir(INPUT_FOLDER) if f.endswith(".docx") and not f.startswith("~$")]
     if not archivos:
         print("No se encontraron archivos .docx en la carpeta 'entrada'.")
     else:
-        for a in archivos: procesar_archivo(a)
+        for a in archivos: 
+            try:
+                procesar_archivo(a)
+            except Exception as e:
+                print(f"❌ Error en {a}: {e}")
