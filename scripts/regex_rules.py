@@ -1,90 +1,95 @@
 import re
 
-# Configuración: True para [corchetes], False para «latinas»
+# ---------- CONFIGURACIÓN ----------
 flag_corchetes = False  
 
-# ---------- 1. LIMPIEZA Y UNIFICACIÓN (PUNTO 4) ----------
+# ---------- 1. LIMPIEZA ----------
 LIMPIEZA_Y_UNIFICACION = [
-    # Punto 4: 1200 kilos -> 1200 kg (antes de procesar números)
-    (re.compile(r'\b(\d+)\s*kilos\b', re.I), r'\1 kg'),
-    (re.compile(r'\(corregido\)', re.I), ''),
-    (re.compile(r'Nota:.*$', re.MULTILINE | re.I), ''),
+    ('ID', re.compile(r'\b(\d+)\s*kilos\b', re.I), r'\1 kg'),
+    ('ID', re.compile(r'\(corregido\)', re.I), ''),
+    ('ID', re.compile(r'Nota:.*$', re.MULTILINE | re.I), ''),
 ]
 
-# ---------- 2. MONEDA Y MILLARES (PUNTO 1) ----------
-NUMEROS_Y_MONEDA = [
-    # Punto 1: 14750 eur -> 14 750 € (Millares con moneda forzados)
-    # Soporta 14750, 14.750 o 14,750 y lo unifica a 14 750 €
-    (re.compile(r'(\d{1,3})[,.]?(\d{3})\s*(?:euros?|eur|€)\b', re.I), r'\1 \2 €'),
+# ---------- 2. DIÁLOGOS Y RAYAS (CORREGIDO) ----------
+RAYAS_Y_DIALOGOS = [
+    # 1. EVITA que las rayas suban a línea anterior (sin salto)
+    ('ID', re.compile(r'([^\n])\s*—'), r'\1\n—'),
     
-    # Millares generales (para que 25000 unidades -> 25 000 unidades)
-    (re.compile(r'(\d{2,3})[,.](\d{3})'), r'\1 \2'),
+    # 2. Fuerza raya larga
+    ('ID', re.compile(r'(?<!—)—(?!=—)'), '—'),
     
-    # Punto EXTRA: 2, 5 h -> 2,5 h (Elimina espacio en decimales)
-    (re.compile(r'(\d+),\s+(\d+)'), r'\1,\2'),
+    # 3. Quita punto después de ? o ! en diálogos
+    ('ID', re.compile(r'([\?\!])\s*\.'), r'\1'),
+    
+    # 4. EVITA espacio ANTES de cierre de comilla
+    ('ID', re.compile(r'\s+([»"])'), r'\1'),
+    
+    # 5. EVITA espacio DESPUÉS de apertura de comilla
+    ('ID', re.compile(r'([«"])\s+'), r'\1'),
+    
+    # 6. Comillas mal formadas (apertura con espacio o carácter raro)
+    ('ID', re.compile(r'[«"]\s*([a-záéíóú])'), r'«\1'),  # Normaliza apertura
+    ('ID', re.compile(r'([a-záéíóú])\s*[»"]'), r'\1»'),  # Normaliza cierre
 ]
 
-# ---------- 3. COMILLAS (PUNTO 5: EL CAZADOR TOTAL) ----------
-# Captura cualquier tipo de comilla y la unifica
-COMILLAS = [
-    (re.compile(r'[„“”"‘’\']([^„“”"‘’\']+)[„“”"‘’\']'), r'[\1]' if flag_corchetes else r'«\1»'),
+# ---------- 3. COMILLAS Y ESPACIOS (REFORZADO) ----------
+COMILLAS_ESTILO = [
+    # Conversión a latinas
+    ('ID', re.compile(r'["“](.*?)["”]'), r'[\1]' if flag_corchetes else r'«\1»'),
+    
+    # Elimina espacios extremos en comillas
+    ('ID', re.compile(r'«\s+'), r'«'),
+    ('ID', re.compile(r'\s+»'), r'»'),
+    
+    # Corrige comillas pegadas sin espacio
+    ('ID', re.compile(r'([a-záéíóú])([«"])'), r'\1 \2'),  # palabra« -> palabra «
+    ('ID', re.compile(r'([»"])([a-záéíóú])'), r'\1 \2'),  # »palabra -> » palabra
 ]
 
-# ---------- 6. DEFENSA FINAL (CON FILTRO TÉCNICO) ----------
-DEFENSA_FINAL = [
-    # 1. Quita espacios dobles y limpia espacios antes de puntuación
-    (re.compile(r'\s+([,.;:!?])'), r'\1'),
+# ---------- 4. UNIDADES Y HORAS (CON CORRECCIÓN DE ABREVIATURAS) ----------
+TECNICO_Y_HORAS = [
+    ('ID', re.compile(r'\bn\.º(?!\s)(\d+)', re.I), r'n.º \1'),
+    ('ID', re.compile(r'(\d)\s*(kg|g|cm|mm|m|km|°C|°F|%|h|min|s)\b'), r'\1 \2'),
     
-    # 2. ESPACIO DESPUÉS DE PUNTUACIÓN (Solo si NO es contexto numérico)
-    # Esta regla dice: "Pon espacio tras :,.;!? SOLO si no hay números pegados"
-    (re.compile(r'(?<!\d)([:;,.!?»])(?!\d)'), r'\1 '),
-    (re.compile(r'([:;,.!?»])(?![ \d]|$)'), r'\1 '),
-
-    # 3. REGLA ESPECÍFICA PARA HORAS (Escudo extra)
-    # Si la IA o una regla anterior metió "14: 00", esto lo vuelve a pegar
-    (re.compile(r'(\d{1,2}):\s+(\d{2})'), r'\1:\2'),
-    
-    # 4. REGLA ESPECÍFICA PARA DECIMALES (Escudo extra)
-    # Si quedó "17, 50", esto lo vuelve a pegar como "17,50"
-    (re.compile(r'(\d+),\s+(\d+)'), r'\1,\2'),
+    # EVITA espacio después de "a. m." o "p. m."
+    ('ID', re.compile(r'([ap]\.\s*m\.)\s+,', re.I), r'\1,'),  # "a. m. ," -> "a. m.,"
+    ('ID', re.compile(r'([ap]\.\s*m\.)\s+\)'), r'\1)'),       # "a. m. )" -> "a. m.)"
 ]
 
-# ---------- 5. RAYAS ----------
-RAYAS = [
-    (re.compile(r'(?<!—)—(?!=—)'), '—'),
-    (re.compile(r'—([.!?])'), r'\1'),
-    (re.compile(r'([^—]*?[.!?])—([.!?])'), r'\1\2'),
-]
-
-# ---------- 6. DEFENSA FINAL (PUNTO 3) ----------
-DEFENSA_FINAL = [
-    # Punto 3: EE. UU.a -> EE. UU. a
-    (re.compile(r'(EE\. UU\.)(?!\s)([a-záéíóú])', re.I), r'\1 \2'),
+# ---------- 5. DEFENSA PUNTUACIÓN (MEJORADA) ----------
+DEFENSA_PUNTUACION = [
+    # Quita espacios ANTES de signos
+    ('ID', re.compile(r'\s+([,.;:!?»"])'), r'\1'),
     
-    # Limpieza de espacios dobles y puntuación pegada
-    (re.compile(r'\s+([,.;:!?])'), r'\1'),
-    (re.compile(r'([,.;:!?»])([a-zA-ZáéíóúÁÉÍÓÚñÑ0-9])'), r'\1 \2'),
+    # Pega signo a comilla de cierre
+    ('ID', re.compile(r'[»"]\s+([.,])'), r'»\1'),
+    
+    # EVITA doble espacio después de signo
+    ('ID', re.compile(r'([,.;:!?»])(?!\d|$)\s+'), r'\1 '),
+    
+    # Limpieza final de espacios dobles
+    ('ID', re.compile(r' +'), ' '),
 ]
 
 # ---------- ENSAMBLADO ----------
 RULES = (
-    [('LIMPIEZA', *r) for r in LIMPIEZA_Y_UNIFICACION] +
-    [('MONEDA', *r) for r in NUMEROS_Y_MONEDA] +
-    [('COMILLAS', *r) for r in COMILLAS] +
-    [('TECNICO', *r) for r in TECNICO] +
-    [('RAYAS', *r) for r in RAYAS] +
-    [('DEFENSA', *r) for r in DEFENSA_FINAL]
+    LIMPIEZA_Y_UNIFICACION +
+    RAYAS_Y_DIALOGOS +
+    COMILLAS_ESTILO +
+    TECNICO_Y_HORAS +
+    DEFENSA_PUNTUACION
 )
+
 def aplicar_regex_editorial(texto):
-    """
-    Aplica todas las reglas editoriales al texto y devuelve
-    el texto normalizado.
-    """
     if not texto:
         return ""
+    
+    texto = texto.replace('\xa0', ' ').replace('\u202f', ' ')
 
-    resultado = texto
     for _, patron, reemplazo in RULES:
-        resultado = patron.sub(reemplazo, resultado)
+        try:
+            texto = patron.sub(reemplazo, texto)
+        except Exception:
+            continue
 
-    return resultado
+    return texto.strip()
