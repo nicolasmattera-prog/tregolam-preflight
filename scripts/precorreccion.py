@@ -6,8 +6,15 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 # INTEGRACIÓN CON EL VALIDADOR APROBADO
-from validador import corregir_bloque_con_seguridad
-from regex_rules import RULES 
+# LOCAL (ejecución directa / Streamlit / tests locales)
+# from validador import corregir_bloque_con_seguridad
+# from regex_rules import RULES
+
+# RENDER / PRODUCCIÓN (Gunicorn, contenedor Linux)
+from scripts.validador import corregir_bloque_con_seguridad
+from scripts.regex_rules import RULES
+# ===========================================================
+
 
 # ---------- CONFIGURACIÓN ----------
 load_dotenv()
@@ -170,3 +177,4 @@ if __name__ == "__main__":
                 procesar_archivo(a)
             except Exception as e:
                 print(f"❌ Error en {a}: {e}")
+
